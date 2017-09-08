@@ -29,3 +29,10 @@ doc/icse-demo/main.pdf
 .idea/
 safe.iml
 debugger/
+
+# Eclipse project files
+.classpath
+.project
+
+# Intellij project files
+.idea
