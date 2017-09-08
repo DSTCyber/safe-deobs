@@ -33,11 +33,13 @@ object Safe {
       // SafeException: print the usage message.
       case ex: SafeException =>
         Console.err.println(ex.getMessage)
+        System.exit(1)
       // Unexpected: print the stack trace.
       case ex =>
         Console.err.println("* Unexpected error occurred.")
         Console.err.println(ex.toString)
         Console.err.println(ex.getStackTrace.mkString(LINE_SEP))
+        System.exit(1)
     }
   }
 
