@@ -88,6 +88,8 @@ trait ASTWalker {
       Try(walk(info), body.map(walk), catchBlock.map(walk), fin.map(_.map(walk)))
     case Debugger(info) =>
       Debugger(walk(info))
+    case JScriptMemFunDecl(info, obj, members, ftn, isStrict) =>
+      JScriptMemFunDecl(walk(info), walk(obj), members.map(walk), walk(ftn), isStrict)
   }
 
   def walk(node: Expr): Expr = node match {

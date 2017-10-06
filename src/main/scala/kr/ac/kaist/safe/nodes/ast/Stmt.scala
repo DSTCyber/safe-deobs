@@ -599,3 +599,24 @@ case class Debugger(
     s.toString
   }
 }
+
+// Stmt ::= function Id (.Id)+ ( (Id,)* ) { SourceElement* }
+case class JScriptMemFunDecl(
+                              override val info: ASTNodeInfo,
+                              obj: Id,
+                              members: List[Id],
+                              ftn: Functional,
+                              strict: Boolean
+                            ) extends Stmt(info: ASTNodeInfo) {
+  override def toString(indent: Int): String = {
+    val s: StringBuilder = new StringBuilder
+    comment.map(c => s.append(c.toString(indent)))
+    s.append("function ")
+      .append(obj.toString(indent))
+      .append(".")
+      .append(NU.join(indent, members.dropRight(1), ".", new StringBuilder("")))
+      .append(".")
+      .append(ftn.toString(indent))
+    s.toString
+  }
+}
