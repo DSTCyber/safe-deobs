@@ -213,7 +213,8 @@ private transient Stmt ExtendedFunctionDeclaration =
      a1:FunctionDeclaration
      { //excLog.signal(new Warning(a1.info().span())); "FunctionDeclaration as a Statement is not allowed in ECMAScript."
        yyValue = a1;
-     };
+     }
+   / yyValue:JScriptMemberFunctionDeclaration;
 
 /*
  * ABlock ::= { (w Statement)* w }

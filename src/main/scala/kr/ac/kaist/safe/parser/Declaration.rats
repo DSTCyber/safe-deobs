@@ -151,3 +151,29 @@ public LHS FunctionExpr =
                                             new SourceElements(info, toList(a3._1()), a3._3()),
                                             f, ids, a3._2()));
      };
+
+/*
+ * JScriptMemberFunctionDeclaration ::= function w Id w dot (w Members)+ w ( (w Params)? w ) w FunctionBody
+ */
+JScriptMemFunDecl JScriptMemberFunctionDeclaration =
+     function w a1:Id w dot w a2:Members w openparen a3:(w Params)? w closeparen w a4:FunctionBody
+     { Span span = createSpan(yyStart,yyCount);
+       ASTNodeInfo info = NodeUtil.makeASTNodeInfo(span);
+       scala.collection.immutable.List<Id> members = toList(a2);
+       scala.collection.immutable.List<Id> ids;
+       if (a3 == null) ids = nilIds;
+       else ids = toList(a3);
+       yyValue = new JScriptMemFunDecl(info, a1, members,
+                                       new Functional(info, nilFds, nilVds,
+                                                      new SourceElements(info, toList(a4._1()), a4._3()),
+                                                      members.last(), ids, a4._2()), false);
+     };
+
+/*
+ * Members ::= Id (w . w Id)*
+ */
+private List<Id> Members =
+     a1:Id a2s:(w void:dot w Id)+
+     { yyValue = cons(a1, a2s.list()); }
+   / a1:Id
+     { yyValue = list(a1); };
