@@ -90,6 +90,8 @@ trait ASTWalker {
       Debugger(walk(info))
     case JScriptMemFunDecl(info, obj, members, ftn, isStrict) =>
       JScriptMemFunDecl(walk(info), walk(obj), members.map(walk), walk(ftn), isStrict)
+    case JScriptConditionalCompilation(info, stmts) =>
+      JScriptConditionalCompilation(walk(info), stmts.map(walk))
   }
 
   def walk(node: Expr): Expr = node match {
