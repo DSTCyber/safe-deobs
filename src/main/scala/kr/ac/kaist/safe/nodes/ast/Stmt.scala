@@ -644,3 +644,51 @@ case class JScriptConditionalCompilation(
   }
 }
 
+// Stmt ::= @if ( Expr ) Stmt (@elif ( Expr ) Stmt)* (@else Stmt)? @endif
+case class JScriptConditionalIf(
+    override val info: ASTNodeInfo,
+    conds: List[Expr],
+    trueBranches: List[Stmt],
+    falseBranch: Option[Stmt]
+) extends Stmt(info: ASTNodeInfo) {
+  override def toString(indent: Int): String = {
+    val s: StringBuilder = new StringBuilder
+    comment.map(c => s.append(c.toString(indent)))
+    val trueIndent = trueBranches.head.getIndent(indent)
+    val elifToString = (cond: Expr, branch: Stmt) => {
+      val branchIndent = branch.getIndent(indent)
+      val s: StringBuilder = new StringBuilder
+      s.append(LINE_SEP)
+      s.append(NU.getIndent(indent))
+        .append("@elif (")
+        .append(cond.toString(indent))
+        .append(")")
+        .append(LINE_SEP)
+        .append(NU.getIndent(branchIndent))
+        .append(branch.toString(branchIndent))
+    }
+    s.append("@if (")
+      .append(conds.head.toString(indent))
+      .append(")")
+      .append(LINE_SEP)
+      .append(NU.getIndent(trueIndent))
+      .append(trueBranches.head.toString(trueIndent))
+      .append((conds.tail zip trueBranches.tail).map { case (c, b) => elifToString(c, b) }.mkString)
+    falseBranch match {
+      case Some(fb) =>
+        val falseIndent = fb.getIndent(indent)
+        s.append(LINE_SEP)
+          .append(NU.getIndent(indent))
+          .append("@else")
+          .append(LINE_SEP)
+          .append(NU.getIndent(falseIndent))
+          .append(fb.toString(falseIndent))
+      case _ =>
+    }
+    s.append(LINE_SEP)
+      .append(NU.getIndent(indent))
+      .append("@end")
+    s.toString
+  }
+}
+

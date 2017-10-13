@@ -49,6 +49,7 @@ import Spacing;
  * | try w ABlock w Catch w Finally
  * | debugger w ;
  * | /*@cc_on JScriptConditionalCompilation @*\/
+ * | @if w ( w Expression w ) w Statement w (@elif w Expression w Statement w)* (else w Statement)?
  */
 private transient void NumericLiteral =
      a1:DecimalDigits !(idrest) { log(writer, a1); } ;
@@ -212,6 +213,22 @@ public Stmt Statement =
    / a1:JScriptMultiLineConditionalCompilation
      { Span span = createSpan(yyStart,yyCount);
        yyValue = new JScriptConditionalCompilation(NodeUtil.makeASTNodeInfo(span), toList(a1));
+     }
+   / jScriptConditionalIf w openparen w a1:Expression w closeparen w a2:Statement
+     a3s:(w JScriptConditionalElif)* a4:(w jScriptConditionalElse w Statement)? w jScriptConditionalEndIf
+     { Span span = createSpan(yyStart,yyCount);
+       List<Expr> conds = new ArrayList<Expr>(); conds.add(a1);
+       List<Stmt> trueBs = new ArrayList<Stmt>(); trueBs.add(a2);
+       if (a3s != null) {
+           for (Tuple2<Expr, Stmt> pair:a3s) {
+               conds.add(pair._1());
+               trueBs.add(pair._2());
+           }
+       }
+       Option<Stmt> elseB;
+       if (a4 == null) elseB = Option.<Stmt>apply(null);
+       else            elseB = Some.<Stmt>apply(a4);
+       yyValue = new JScriptConditionalIf(NodeUtil.makeASTNodeInfo(span), toList(conds), toList(trueBs), elseB);
      };
 
 private transient Stmt ExtendedFunctionDeclaration =
@@ -312,3 +329,7 @@ private transient List<Stmt> JScriptMultiLineConditionalCompilation =
     { yyValue = list(); }
   / "/*" jScriptCCOn w a1:Statement a2s:(w Statement)* w "@*/"
     { yyValue = cons(a1, a2s.list()); };
+
+private transient Tuple2<Expr, Stmt> JScriptConditionalElif =
+    jScriptConditionalElif w openparen w a1:Expression w closeparen w a2:Statement
+    { yyValue = new Tuple2<Expr, Stmt>(a1, a2); };
