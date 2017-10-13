@@ -103,3 +103,5 @@ transient void boolean = "boolean" !(idrest);
 transient void string = "string" !(idrest);
 transient void private = "private" !(idrest);
 transient void public = "public" !(idrest);
+
+transient void jScriptCCOn = "@cc_on" !(idrest);

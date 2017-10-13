@@ -48,6 +48,7 @@ import Spacing;
  * | try w ABlock w Finally
  * | try w ABlock w Catch w Finally
  * | debugger w ;
+ * | /*@cc_on JScriptConditionalCompilation @*\/
  */
 private transient void NumericLiteral =
      a1:DecimalDigits !(idrest) { log(writer, a1); } ;
@@ -207,6 +208,10 @@ public Stmt Statement =
    / debugger EOS
      { Span span = createSpan(yyStart,yyCount);
        yyValue = new Debugger(NodeUtil.makeASTNodeInfo(span));
+     }
+   / a1:JScriptMultiLineConditionalCompilation
+     { Span span = createSpan(yyStart,yyCount);
+       yyValue = new JScriptConditionalCompilation(NodeUtil.makeASTNodeInfo(span), toList(a1));
      };
 
 private transient Stmt ExtendedFunctionDeclaration =
@@ -223,9 +228,7 @@ transient List<Stmt> ABlock =
      opencurly w closecurly
      { yyValue = list(); }
    / opencurly w a1:Statement a2s:(w Statement)* w closecurly
-     { Span span = createSpan(yyStart,yyCount+1);
-       yyValue = cons(a1, a2s.list());
-     };
+     { yyValue = cons(a1, a2s.list()); };
 
 /*
  * VariableDeclarationList ::=
@@ -300,3 +303,12 @@ private transient Catch Catch =
  */
 private transient List<Stmt> Finally =
      finally w yyValue:ABlock ;
+
+/*
+ * JScriptMultiLineConditionalCompilation ::= /*@cc_on Statement* @*\/
+ */
+private transient List<Stmt> JScriptMultiLineConditionalCompilation =
+    "/*" jScriptCCOn w "@*/"
+    { yyValue = list(); }
+  / "/*" jScriptCCOn w a1:Statement a2s:(w Statement)* w "@*/"
+    { yyValue = cons(a1, a2s.list()); };

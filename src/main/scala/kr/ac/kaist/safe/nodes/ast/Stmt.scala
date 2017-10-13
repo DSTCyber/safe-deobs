@@ -593,12 +593,12 @@ case class Debugger(
 
 // Stmt ::= function Id (.Id)+ ( (Id,)* ) { SourceElement* }
 case class JScriptMemFunDecl(
-                              override val info: ASTNodeInfo,
-                              obj: Id,
-                              members: List[Id],
-                              ftn: Functional,
-                              strict: Boolean
-                            ) extends Stmt(info: ASTNodeInfo) {
+    override val info: ASTNodeInfo,
+    obj: Id,
+    members: List[Id],
+    ftn: Functional,
+    strict: Boolean
+) extends Stmt(info: ASTNodeInfo) {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
@@ -611,3 +611,27 @@ case class JScriptMemFunDecl(
     s.toString
   }
 }
+
+// Stmt ::= /*@cc_on Stmt* @*/
+case class JScriptConditionalCompilation(
+    override val info: ASTNodeInfo,
+    stmts: List[Stmt]
+) extends Stmt(info: ASTNodeInfo) {
+  override def toString(indent: Int): String = {
+    val s: StringBuilder = new StringBuilder
+    s.append("/*@cc_on")
+      .append(LINE_SEP)
+      .append(NU.getIndent(indent + 1))
+      .append(NU.join(
+        indent + 1,
+        stmts,
+        LINE_SEP + NU.getIndent(indent + 1),
+        new StringBuilder("")
+      ))
+      .append(LINE_SEP)
+      .append(NU.getIndent(indent))
+      .append("@*/")
+    s.toString
+  }
+}
+
