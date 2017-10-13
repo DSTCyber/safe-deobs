@@ -92,6 +92,8 @@ trait ASTWalker {
       JScriptMemFunDecl(walk(info), walk(obj), members.map(walk), walk(ftn), isStrict)
     case JScriptConditionalCompilation(info, stmts) =>
       JScriptConditionalCompilation(walk(info), stmts.map(walk))
+    case JScriptConditionalIf(info, conds, trueBranches, falseBranch) =>
+      JScriptConditionalIf(walk(info), conds.map(walk), trueBranches.map(walk), falseBranch.map(walk))
   }
 
   def walk(node: Expr): Expr = node match {
