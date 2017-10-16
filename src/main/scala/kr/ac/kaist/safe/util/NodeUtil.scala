@@ -294,6 +294,33 @@ object NodeUtil {
   def isInternalVar(id: String): Boolean = internalVarSet.contains(id)
   def getInternalVarId(text: String): CFGId = CFGTempId(text, GlobalVar)
 
+  // JScript conditional compilation variables
+  val JSCRIPT_CC_WINTHIRTYTWO = internalAPIName("_win32")
+  val JSCRIPT_CC_WINSIXTYFOUR = internalAPIName("_win64")
+  val JSCRIPT_CC_WINSIXTEEN = internalAPIName("_win16")
+  val JSCRIPT_CC_MAC = internalAPIName("_mac")
+  val JSCRIPT_CC_ALPHA = internalAPIName("_alpha")
+  val JSCRIPT_CC_INTEL = internalAPIName("_x86")
+  val JSCRIPT_CC_MOTOROLA = internalAPIName("_mc680x0")
+  val JSCRIPT_CC_POWER_PC = internalAPIName("_PowerPC")
+  val JSCRIPT_CC_JSCRIPT = internalAPIName("_jscript")
+  val JSCRIPT_CC_JSCRIPT_BUILD = internalAPIName("_jscript_build")
+  val JSCRIPT_CC_JSCRIPT_VERSION = internalAPIName("_jscript_version")
+  val jScriptCCVarSet: Set[String] = HashSet(
+    JSCRIPT_CC_WINTHIRTYTWO,
+    JSCRIPT_CC_WINSIXTYFOUR,
+    JSCRIPT_CC_WINSIXTEEN,
+    JSCRIPT_CC_MAC,
+    JSCRIPT_CC_ALPHA,
+    JSCRIPT_CC_INTEL,
+    JSCRIPT_CC_MOTOROLA,
+    JSCRIPT_CC_POWER_PC,
+    JSCRIPT_CC_JSCRIPT,
+    JSCRIPT_CC_JSCRIPT_BUILD,
+    JSCRIPT_CC_JSCRIPT_VERSION
+  )
+  def isJScriptCCVar(id: String): Boolean = jScriptCCVarSet.contains(id)
+
   ////////////////////////////////////////////////////////////////
   // For all AST, IR, and CFG
   ////////////////////////////////////////////////////////////////
@@ -319,7 +346,7 @@ object NodeUtil {
   def funexprName(span: Span): String = freshName("funexpr@" + span.toStringWithoutFiles)
 
   def isInternalAPI(s: String): Boolean =
-    isInternalCall(s) || isInternalValue(s) || isInternalVar(s)
+    isInternalCall(s) || isInternalValue(s) || isInternalVar(s) || isJScriptCCVar(s)
   def isInternal(s: String): Boolean = s.containsSlice(INTERNAL_SYMBOL)
   def isGlobalName(s: String): Boolean = s.startsWith(GLOBAL_PREFIX)
   def isFunExprName(name: String): Boolean = name.containsSlice("<>funexpr")
