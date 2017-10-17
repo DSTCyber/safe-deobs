@@ -163,7 +163,8 @@ case class ExprStmt(
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
-    s.append(expr.toString(indent) + ";")
+    s.append(expr.toString(indent))
+      .append(";")
     s.toString
   }
 }
@@ -255,9 +256,9 @@ case class For(
     val bodyIndent = body.getIndent(indent)
     s.append("for (")
     init.map(i => s.append(i.toString(indent)))
-    s.append(";")
+    s.append("; ")
     cond.map(c => s.append(c.toString(indent)))
-    s.append(";")
+    s.append("; ")
     action.map(a => s.append(a.toString(indent)))
     s.append(")")
       .append(LINE_SEP)
@@ -302,16 +303,16 @@ case class ForVar(
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
     val bodyIndent = body.getIndent(indent)
-    s.append("for(var ")
+    s.append("for (var ")
       .append(NU.join(
         indent,
         vars,
         ", ",
         new StringBuilder("")
       ))
-      .append(";")
+      .append("; ")
     cond.map(c => s.append(c.toString(indent)))
-    s.append(";")
+    s.append("; ")
     action.map(a => s.append(a.toString(indent)))
     s.append(")")
       .append(LINE_SEP)
@@ -332,7 +333,7 @@ case class ForVarIn(
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
     val bodyIndent = body.getIndent(indent)
-    s.append("for(var ")
+    s.append("for (var ")
       .append(vd.toString(indent))
       .append(" in ")
       .append(expr.toString(indent))
@@ -422,7 +423,7 @@ case class Switch(
     comment.map(c => s.append(c.toString(indent)))
     s.append("switch (")
       .append(cond.toString(indent))
-      .append("){")
+      .append(") {")
       .append(LINE_SEP)
       .append(NU.getIndent(indent + 1))
       .append(NU.join(
@@ -525,9 +526,8 @@ case class Try(
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
-    s.append("try")
+    s.append("try {")
       .append(LINE_SEP)
-      .append("{")
       .append(NU.getIndent(indent + 1))
       .append(NU.join(
         indent + 1,
@@ -535,6 +535,8 @@ case class Try(
         LINE_SEP + NU.getIndent(indent + 1),
         new StringBuilder("")
       ))
+      .append(LINE_SEP)
+      .append(NU.getIndent(indent))
       .append("}")
     catchBlock.map(c => {
       s.append(LINE_SEP)
@@ -544,9 +546,8 @@ case class Try(
     fin.map(f => {
       s.append(LINE_SEP)
         .append(NU.getIndent(indent))
-        .append("finally")
+        .append("finally {")
         .append(LINE_SEP)
-        .append("{")
         .append(NU.getIndent(indent + 1))
         .append(NU.join(
           indent + 1,
@@ -554,8 +555,9 @@ case class Try(
           LINE_SEP + NU.getIndent(indent + 1),
           new StringBuilder("")
         ))
-        .append("}")
         .append(LINE_SEP)
+        .append(NU.getIndent(indent))
+        .append("}")
     })
     s.toString
   }
@@ -572,9 +574,8 @@ case class Catch(
     comment.map(c => s.append(c.toString(indent)))
     s.append("catch (")
       .append(id.toString(indent))
-      .append(")")
+      .append(") {")
       .append(LINE_SEP)
-      .append("{")
       .append(NU.getIndent(indent + 1))
       .append(NU.join(
         indent + 1,
@@ -582,8 +583,9 @@ case class Catch(
         LINE_SEP + NU.getIndent(indent + 1),
         new StringBuilder("")
       ))
-      .append("}")
       .append(LINE_SEP)
+      .append(NU.getIndent(indent))
+      .append("}")
     s.toString
   }
 }
