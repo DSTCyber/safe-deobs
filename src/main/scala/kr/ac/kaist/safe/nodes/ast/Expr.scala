@@ -335,7 +335,7 @@ case class FunExpr(
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
-    s.append("(function ")
+    s.append("function ")
     if (!NU.isFunExprName(ftn.name.text)) s.append(ftn.name.toString(indent))
     s.append("(")
       .append(NU.join(
@@ -344,16 +344,13 @@ case class FunExpr(
         ", ",
         new StringBuilder("")
       ))
-      .append(") ")
-      .append(LINE_SEP)
-      .append(NU.getIndent(indent))
-      .append("{")
+      .append(") {")
       .append(LINE_SEP)
     NU.prUseStrictDirective(s, indent, ftn.fds, ftn.vds, ftn.stmts)
     NU.prFtn(s, indent, ftn.fds, ftn.vds, ftn.stmts.body)
     s.append(LINE_SEP)
       .append(NU.getIndent(indent))
-      .append("})")
+      .append("}")
     s.toString
   }
 }
