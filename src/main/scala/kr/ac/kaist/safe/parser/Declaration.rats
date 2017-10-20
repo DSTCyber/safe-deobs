@@ -159,6 +159,7 @@ JScriptMemFunDecl JScriptMemberFunctionDeclaration =
      function w a1:Id w dot w a2:Members w openparen a3:(w Params)? w closeparen w a4:FunctionBody
      { Span span = createSpan(yyStart,yyCount);
        ASTNodeInfo info = NodeUtil.makeASTNodeInfo(span);
+       Id f = a2.remove(a2.size() - 1);
        scala.collection.immutable.List<Id> members = toList(a2);
        scala.collection.immutable.List<Id> ids;
        if (a3 == null) ids = nilIds;
@@ -166,7 +167,7 @@ JScriptMemFunDecl JScriptMemberFunctionDeclaration =
        yyValue = new JScriptMemFunDecl(info, a1, members,
                                        new Functional(info, nilFds, nilVds,
                                                       new SourceElements(info, toList(a4._1()), a4._3()),
-                                                      members.last(), ids, a4._2()), false);
+                                                      f, ids, a4._2()), false);
      };
 
 /*

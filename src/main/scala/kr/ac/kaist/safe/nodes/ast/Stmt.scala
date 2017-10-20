@@ -607,9 +607,9 @@ case class JScriptMemFunDecl(
     s.append("function ")
       .append(obj.toString(indent))
       .append(".")
-      .append(NU.join(indent, members.dropRight(1), ".", new StringBuilder("")))
-      .append(".")
-      .append(ftn.toString(indent))
+      .append(NU.join(indent, members, ".", new StringBuilder("")))
+    if (!members.isEmpty) s.append(".")
+    s.append(ftn.toString(indent))
     s.toString
   }
 }
