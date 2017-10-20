@@ -146,6 +146,8 @@ trait ASTWalker {
       New(walk(info), walk(lhs))
     case FunApp(info, fun, args) =>
       FunApp(walk(info), walk(fun), args.map(walk))
+    case JScriptMemFunExpr(info, obj, members, ftn) =>
+      JScriptMemFunExpr(walk(info), walk(obj), members.map(walk), walk(ftn))
   }
 
   def walk(node: NumberLiteral): NumberLiteral = node match {

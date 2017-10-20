@@ -418,3 +418,23 @@ case class FunApp(
     s.toString
   }
 }
+
+// LHS ::= function Id (.Id)+ ( (Id,)* ) { SourceElement }
+case class JScriptMemFunExpr(
+    override val info: ASTNodeInfo,
+    obj: Id,
+    members: List[Id],
+    ftn: Functional
+) extends LHS(info: ASTNodeInfo) {
+  override def toString(indent: Int): String = {
+    val s: StringBuilder = new StringBuilder
+    comment.map(c => s.append(c.toString(indent)))
+    s.append("function ")
+      .append(obj.toString(indent))
+      .append(".")
+      .append(NU.join(indent, members, ".", new StringBuilder("")))
+    if (!members.isEmpty) s.append(".")
+    s.append(ftn.toString(indent))
+    s.toString
+  }
+}

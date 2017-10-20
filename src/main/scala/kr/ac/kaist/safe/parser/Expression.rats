@@ -481,6 +481,7 @@ private transient LHS NewExpr =
  * MemberExpr ::=
  *   PrimaryExpr
  * | FunctionExpr
+ * | JScriptMemberFunctionExpr
  * | MemberExpr w [ w Expression w ]
  * | MemberExpr w . w IdName
  * | new w MemberExpr w Args
@@ -491,6 +492,7 @@ LHS MemberExpr =
 
 LHS MemberExprFront =
      FunctionExpr
+   / JScriptMemberFunctionExpr
    / PrimaryExpr
    / new w a1:MemberExpr w a2:Args
      { Span span = createSpan(yyStart,yyCount+1);
