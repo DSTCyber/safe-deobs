@@ -76,6 +76,11 @@ case object CmdASTRewrite extends CommandObj("astRewrite", CmdParse >> ASTRewrit
   override def display(program: Program): Unit = println(program.toString(0))
 }
 
+// deobfuscate
+case object CmdDeobfuscate extends CommandObj("deobfuscate", CmdASTRewrite >> Deobfuscate) {
+  override def display(program: Program): Unit = println(program.toString(0))
+}
+
 // compile
 case object CmdCompile extends CommandObj("compile", CmdASTRewrite >> Compile) {
   override def display(ir: IRRoot): Unit = println(ir.toString(0))
