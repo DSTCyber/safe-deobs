@@ -15,7 +15,7 @@ package kr.ac.kaist.safe.phase
 import scala.util.{ Try, Success }
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.SafeConfig
-import kr.ac.kaist.safe.deobfuscator.{ StringDecoder }
+import kr.ac.kaist.safe.deobfuscator.{ StringDecoder, ConstantFolder }
 import kr.ac.kaist.safe.nodes.ast.Program
 import kr.ac.kaist.safe.util.{ NodeUtil => NU }
 import kr.ac.kaist.safe.util._
@@ -24,7 +24,7 @@ import kr.ac.kaist.safe.util._
 case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
   val name: String = "deobfuscator"
   val help: String =
-    "Deobfuscates JavaScript malware (string decoder)"
+    "Deobfuscates JavaScript malware (string decoder, constant folder)"
 
   def apply(
     pgm: Program,
@@ -38,6 +38,11 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     val stringDecoder = new StringDecoder(program)
     program = stringDecoder.result
     excLog += stringDecoder.excLog
+
+    // fold constants
+    val constantFolder = new ConstantFolder(program)
+    program = constantFolder.result
+    excLog += constantFolder.excLog
 
     // Simplify
     program = NU.SimplifyWalker.walk(program)
