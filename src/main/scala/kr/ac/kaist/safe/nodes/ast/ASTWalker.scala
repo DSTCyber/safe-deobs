@@ -111,6 +111,8 @@ trait ASTWalker {
       AssignOpApp(walk(info), walk(lhs), walk(op), walk(right))
     case l: LHS =>
       walk(l)
+    case EmptyExpr(info) =>
+      EmptyExpr(walk(info))
   }
 
   def walk(node: LHS): LHS = node match {

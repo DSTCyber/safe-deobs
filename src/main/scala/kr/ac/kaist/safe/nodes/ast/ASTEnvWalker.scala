@@ -112,6 +112,8 @@ trait ASTEnvWalker[Env] {
       AssignOpApp(walk(info, env), walk(lhs, env), walk(op, env), walk(right, env))
     case l: LHS =>
       walk(l, env)
+    case EmptyExpr(info) =>
+      EmptyExpr(walk(info, env))
   }
 
   def walk(node: LHS, env: Env): LHS = node match {
