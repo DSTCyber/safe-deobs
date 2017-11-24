@@ -724,6 +724,9 @@ object NodeUtil {
         case ABlock(info, sts, b) =>
           repeat = true;
           List(ABlock(info, simplify(sts), b)) ++ simplify(rest)
+        case ExprStmt(_, _: EmptyExpr, _) =>
+          repeat = true
+          simplify(rest)
         case _ => List(stmt) ++ simplify(rest)
       }
     }

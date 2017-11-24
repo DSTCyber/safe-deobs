@@ -119,6 +119,8 @@ trait ASTGeneralWalker[Result] {
       join(walk(info), walk(lhs), walk(op), walk(right))
     case l: LHS =>
       walk(l)
+    case EmptyExpr(info) =>
+      walk(info)
   }
 
   def walk(node: LHS): Result = node match {
