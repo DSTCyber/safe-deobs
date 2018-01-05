@@ -96,6 +96,14 @@ class ConstantPropagator(program: Program) {
   private type VarMap = mutable.Map[String, AbstractValue]
 
   /**
+   * A stack of variable mappings.
+   *
+   * Each stack frame corresponds to a particular scope in the JavaScript
+   * program.
+   */
+  private type VarStack = mutable.ArrayStack[VarMap]
+
+  /**
    * The constant propagation environment.
    *
    * The environment is a stack of variable mappings, where each stack frame
@@ -107,14 +115,23 @@ class ConstantPropagator(program: Program) {
    * corresponds to the global scope and is created by the \c TopLevel AST
    * element.
    */
-  private class Env(var variables: List[VarMap] = List()) {
+  private class Env(val variables: VarStack = mutable.ArrayStack()) {
+    /**
+     * Perform a deep copy of the current environment.
+     */
+    def copy(): Env = {
+      val newVariables: VarStack = mutable.ArrayStack()
+      variables.foreach(varMap => newVariables.push(varMap.clone))
+      new Env(newVariables)
+    }
+
     /**
      * Enter a new scope.
      *
      * This pushes an empty variable mapping into the environment.
      */
     def enterScope(ast: ASTNode): Unit =
-      variables = mutable.Map[String, AbstractValue]() :: variables
+      variables.push(mutable.Map())
 
     /**
      * Exit a scope.
@@ -122,18 +139,30 @@ class ConstantPropagator(program: Program) {
      * This destroys the top (i.e. most recent) variable mapping in the
      * environment.
      */
-    def exitScope(ast: ASTNode): Unit = variables match {
-      case _ :: vars => variables = vars
-      case List() => throw EmptyEnvironmentError(ast)
-    }
+    def exitScope(ast: ASTNode): Unit =
+      variables.pop()
 
     /**
-     * Create a new variable in the environment.
+     * Create a new, uninitialized variable in the environment.
      *
      * The variable is added to the top stack frame and initialized to ⊥.
      */
-    def createVariable(name: Id): Unit =
+    def createVariable(name: Id): AbstractValue = {
       variables.head += name.text -> Bottom
+      Bottom
+    }
+
+    /**
+     * Create a new, initialized variable in the environment.
+     *
+     * The variable is added to the top stack frame and initialized with an
+     * abstract representation of the given expression
+     */
+    def createVariable(name: Id, value: Expr): AbstractValue = {
+      val absVal = makeAbstract(value)
+      variables.head += name.text -> absVal
+      absVal
+    }
 
     /**
      * Update the abstract value of a variable in the environment.
@@ -149,8 +178,10 @@ class ConstantPropagator(program: Program) {
           val absVal = makeAbstract(value)
           m += nameText -> absVal
           absVal
-        // The variable should have been defined before it can be updated!
-        case None => throw UndefinedVariableError(name)
+        // Technically the variable should have been defined before it can be
+        // updated, but JavaScript is a funny language so we'll add the variable
+        // to the current stack frame.
+        case None => createVariable(name, value)
       }
     }
 
@@ -183,28 +214,26 @@ class ConstantPropagator(program: Program) {
      * This involves walking each stack frame in the environments and
      * performing a join on every variable in the stack frame.
      */
-    def join(other: Env): Env = {
-      val zippedVars = variables zip other.variables
-      val joinedVars = zippedVars.map {
-        // v1 and v2 are VarMaps from the two environments
-        case (v1, v2) =>
-          // Get the set of unique variable identifiers from the two VarMaps.
-          // For each identifier retrieve its value from the two environments
-          // (if the value doesn't exist we set it to ⊥, which means that it is
-          // uninitialized).
-          //
-          // Perform the join operation on these two values, and create a
-          // single variable identifier, value pair from this join operation.
-          // We later transform these variable identifier, value pairs back
-          // into a map.
-          val varMap = (v1.keys ++ v2.keys).toSeq.distinct.map(
-            id => id -> (v1.getOrElse(id, Bottom) join v2.getOrElse(id, Bottom))
-          )
-          // Convert the sequence of pairs back to a mutable map
-          mutable.Map(varMap: _*)
+    def join(other: Env): Unit = {
+      // v1 and v2 are VarMaps from the two environments and i is the current
+      // index
+      for ((v1, i) <- variables.zipWithIndex; v2 <- other.variables) {
+        // Get the set of unique variable identifiers from the two VarMaps.
+        // For each identifier retrieve its value from the two environments
+        // (if the value doesn't exist we set it to ⊥, which means that it is
+        // uninitialized).
+        //
+        // Perform the join operation on these two values, and create a
+        // single variable identifier, value pair from this join operation.
+        // We later transform these variable identifier, value pairs back
+        // into a map.
+        val varMap = (v1.keys ++ v2.keys).toSeq.distinct.map(
+          id => id -> (v1.getOrElse(id, Bottom) join v2.getOrElse(id, Bottom))
+        )
+        // Convert the sequence of pairs back to a mutable map and update it in
+        // the variable stack
+        variables.update(i, mutable.Map(varMap: _*))
       }
-      // Return the newly "joined" environment
-      new Env(joinedVars)
     }
   }
 
@@ -264,7 +293,9 @@ class ConstantPropagator(program: Program) {
         val newStmts = stmts.map(walk(_, env))
         // Filter out any variable declarations that have remained constant (or
         // ⊥) in this function - they are just dead code at this point
-        val filteredVds = env.filterConstantVarDecls(newVds)
+        // XXX don't do this for now
+        //val filteredVds = env.filterConstantVarDecls(newVds)
+        val filteredVds = newVds
         // We're finished - destroy this stack frame
         env.exitScope(node)
         TopLevel(info, newFds, filteredVds, newStmts)
@@ -315,7 +346,9 @@ class ConstantPropagator(program: Program) {
         val newSeBody = seBody.map(walk(_, env))
         // Filter out any variable declarations that have remained constant (or
         // ⊥) in this function - they are just dead code at this point
-        val filteredVds = env.filterConstantVarDecls(newVds)
+        // XXX don't do this for now
+        //val filteredVds = env.filterConstantVarDecls(newVds)
+        val filteredVds = newVds
         // We're finished - destroy this stack frame
         env.exitScope(node)
         Functional(info, newFds, filteredVds, SourceElements(seInfo, newSeBody, strict), name, params, body)
@@ -336,6 +369,48 @@ class ConstantPropagator(program: Program) {
         env.exitScope(node)
         ABlock(info, newStmts, internal)
 
+      // If statements require us to analyse each branch individually. This
+      // means that we must create a new copy of the environment when we walk
+      // each branch of the if statement. After each branch has been walked, we
+      // must merge all the environments together. This is known as a "join",
+      // which is usually defined using the "⊔" operator.
+      case If(info, cond, trueBranch, None) =>
+        // Propagate constants into the conditional expression. Note that we do
+        // not perform any dead code elimination if the conditional expression
+        // becomes constant.
+        val newCond = walk(cond, env)
+        // Copy the current environment (because it contains mutable data
+        // structures) and walk the true branch. This will modify the copied
+        // environment and leave the original environment unchanged.
+        val trueBranchEnv = env.copy
+        val newTrueBranch = walk(trueBranch, trueBranchEnv)
+        // Perform a join on the original environment and the environment
+        // returned after walking the true branch
+        env.join(trueBranchEnv)
+        If(info, newCond, newTrueBranch, None)
+
+      case If(info, cond, trueBranch, Some(falseBranch)) =>
+        // Propagate constants into the conditional expression. Note that we do
+        // not perform any dead code elimination if the conditional expression
+        // becomes constant.
+        val newCond = walk(cond, env)
+        // Create copies of the environment to walk the true and false branches.
+        val trueBranchEnv = env.copy
+        val falseBranchEnv = env.copy
+        // Walk the true and false branches with the copied environments. This
+        // will modify the copied environments and leave the original
+        // environment unchanged.
+        val newTrueBranch = walk(trueBranch, trueBranchEnv)
+        val newFalseBranch = walk(falseBranch, falseBranchEnv)
+        // Perform a join on the true and false branch environments. Because we
+        // want the results to propagate into the original environment passed
+        // into this method, we perform a join twice on the original environment
+        // and rely on the associativity of join (i.e.
+        // (e1 ⊔ e2) ⊔ e3 === e1 ⊔ (e2 ⊔ e3))
+        env.join(trueBranchEnv)
+        env.join(falseBranchEnv)
+        If(info, newCond, newTrueBranch, Some(newFalseBranch))
+
       // Rewalk the node if a change has been made to the AST
       case _ =>
         val newNode = super.walk(node, env)
@@ -353,8 +428,10 @@ class ConstantPropagator(program: Program) {
         case AssignOpApp(info, vr @ VarRef(_, id), op, right) =>
           val newRight = walk(right, env)
           env.updateVariable(id, newRight) match {
-            case Top => AssignOpApp(info, vr, op, newRight)
-            case _ => EmptyExpr(info)
+            // XXX do not delete expressions for now
+            //case Top => AssignOpApp(info, vr, op, newRight)
+            //case _ => EmptyExpr(info)
+            case _ => AssignOpApp(info, vr, op, newRight)
           }
         case _ => assign
       }
