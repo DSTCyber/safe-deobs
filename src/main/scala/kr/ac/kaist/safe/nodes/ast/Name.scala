@@ -40,6 +40,12 @@ case class Id(
     }
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Id(_, text1, uniqueName1, isWith1), Id(_, text2, uniqueName2, isWith2)) =>
+      text1 == text2 && uniqueName1 == uniqueName2 && isWith1 == isWith2
+    case _ => false
+  }
 }
 
 // Infix/prefix/postfix operator
@@ -53,6 +59,11 @@ case class Op(
     s.append(text)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Op(_, text1), Op(_, text2)) => text1 == text2
+    case _ => false
+  }
 }
 
 // Unnamed identifier
@@ -61,4 +72,10 @@ case class AnonymousFnName(
     text: String
 ) extends IdOrOpOrAnonymousName {
   override def toString(indent: Int): String = ""
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (AnonymousFnName(_, text1), AnonymousFnName(_, text2)) =>
+      text1 == text2
+    case _ => false
+  }
 }

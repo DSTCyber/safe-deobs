@@ -28,6 +28,11 @@ case class PropId(
     s.toString
   }
   def toId: Id = id
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (PropId(_, id1), PropId(_, id2)) => id1 =~ id2
+    case _ => false
+  }
 }
 
 // Property ::= String
@@ -43,6 +48,11 @@ case class PropStr(
     s.toString
   }
   def toId: Id = Id(info, str, None, false)
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (PropStr(_, str1), PropStr(_, str2)) => str1 == str2
+    case _ => false
+  }
 }
 
 // Property ::= Number
@@ -61,4 +71,9 @@ case class PropNum(
     case DoubleLiteral(_, t, _) => t
     case IntLiteral(_, i, _) => i.toString
   }, None, false)
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (PropNum(_, num1), PropNum(_, num2)) => num1 =~ num2
+    case _ => false
+  }
 }

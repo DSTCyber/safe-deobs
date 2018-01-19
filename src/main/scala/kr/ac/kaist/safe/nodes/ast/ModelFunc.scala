@@ -16,4 +16,9 @@ case class ModelFunc(
     info: ASTNodeInfo
 ) extends ASTNode {
   override def toString(indent: Int): String = ""
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ModelFunc(_), ModelFunc(_)) => true
+    case _ => false
+  }
 }

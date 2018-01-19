@@ -38,6 +38,11 @@ case class NoOp(
     desc: String
 ) extends Stmt {
   override def toString(indent: Int): String = ""
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (NoOp(_, desc1), NoOp(_, desc2)) => desc1 == desc2
+    case _ => false
+  }
 }
 
 /**
@@ -64,6 +69,12 @@ case class StmtUnit(
       .append("}")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (StmtUnit(_, stmts1), StmtUnit(_, stmts2)) =>
+      NU.fuzzyCompare(stmts1, stmts2)
+    case _ => false
+  }
 }
 
 // Stmt ::= function Id ( (Id,)* ) { Stmt* }
@@ -78,6 +89,12 @@ case class FunDecl(
     s.append("function ")
       .append(ftn.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (FunDecl(_, ftn1, strict1), FunDecl(_, ftn2, strict2)) =>
+      ftn1 =~ ftn2 && strict1 == strict2
+    case _ => false
   }
 }
 
@@ -105,6 +122,12 @@ case class ABlock(
     s.toString
   }
   override def getIndent(indent: Int): Int = indent
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ABlock(_, stmts1, internal1), ABlock(_, stmts2, internal2)) =>
+      NU.fuzzyCompare(stmts1, stmts2) && internal1 == internal2
+    case _ => false
+  }
 }
 
 // Stmt ::= var VarDecl(, VarDecl)* ;
@@ -124,6 +147,12 @@ case class VarStmt(
         s.toString
     }
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (VarStmt(_, vds1), VarStmt(_, vds2)) =>
+      NU.fuzzyCompare(vds1, vds2)
+    case _ => false
+  }
 }
 
 // Stmt ::= Id (= Expr)?
@@ -140,6 +169,12 @@ case class VarDecl(
     expr.map(e => s.append(" = ").append(e.toString(indent)))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (VarDecl(_, name1, expr1, strict1), VarDecl(_, name2, expr2, strict2)) =>
+      name1 =~ name2 && NU.fuzzyCompare(expr1, expr2) && strict1 == strict2
+    case _ => false
+  }
 }
 
 // Stmt ::= ;
@@ -151,6 +186,11 @@ case class EmptyStmt(
     comment.map(c => s.append(c.toString(indent)))
     s.append(";")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (EmptyStmt(_), EmptyStmt(_)) => true
+    case _ => false
   }
 }
 
@@ -166,6 +206,12 @@ case class ExprStmt(
     s.append(expr.toString(indent))
       .append(";")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ExprStmt(_, expr1, internal1), ExprStmt(_, expr2, internal2)) =>
+      expr1 =~ expr2 && internal1 == internal2
+    case _ => false
   }
 }
 
@@ -199,6 +245,12 @@ case class If(
     }
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (If(_, cond1, trueBranch1, falseBranch1), If(_, cond2, trueBranch2, falseBranch2)) =>
+      cond1 =~ cond2 && trueBranch1 =~ trueBranch2 && NU.fuzzyCompare(falseBranch1, falseBranch2)
+    case _ => false
+  }
 }
 
 // Stmt ::= do Stmt while ( Expr ) ;
@@ -220,6 +272,12 @@ case class DoWhile(
       .append(");")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (DoWhile(_, body1, cond1), DoWhile(_, body2, cond2)) =>
+      body1 =~ body2 && cond1 =~ cond2
+    case _ => false
+  }
 }
 
 // Stmt ::= while ( Expr ) Stmt
@@ -239,6 +297,12 @@ case class While(
       .append(NU.getIndent(bodyIndent))
       .append(body.toString(bodyIndent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (While(_, cond1, body1), While(_, cond2, body2)) =>
+      cond1 =~ cond2 && body1 =~ body2
+    case _ => false
   }
 }
 
@@ -266,6 +330,13 @@ case class For(
       .append(body.toString(bodyIndent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (For(_, init1, cond1, action1, body1), For(_, init2, cond2, action2, body2)) =>
+      NU.fuzzyCompare(init1, init2) && NU.fuzzyCompare(cond1, cond2) &&
+        NU.fuzzyCompare(action1, action2) && body1 =~ body2
+    case _ => false
+  }
 }
 
 // Stmt ::= for ( lhs in Expr ) Stmt
@@ -288,6 +359,12 @@ case class ForIn(
       .append(NU.getIndent(bodyIndent))
       .append(body.toString(bodyIndent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ForIn(_, lhs1, expr1, body1), ForIn(_, lhs2, expr2, body2)) =>
+      lhs1 =~ lhs2 && expr1 =~ expr2 && body1 =~ body2
+    case _ => false
   }
 }
 
@@ -320,6 +397,13 @@ case class ForVar(
       .append(body.toString(bodyIndent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ForVar(_, vars1, cond1, action1, body1), ForVar(_, vars2, cond2, action2, body2)) =>
+      NU.fuzzyCompare(vars1, vars2) && NU.fuzzyCompare(cond1, cond2) &&
+        NU.fuzzyCompare(action1, action2) && body1 =~ body2
+    case _ => false
+  }
 }
 
 // Stmt ::= for ( var VarDecl in Expr ) Stmt
@@ -343,6 +427,12 @@ case class ForVarIn(
       .append(body.toString(bodyIndent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ForVarIn(_, vd1, expr1, body1), ForVarIn(_, vd2, expr2, body2)) =>
+      vd1 =~ vd2 && expr1 =~ expr2 && body1 =~ body2
+    case _ => false
+  }
 }
 
 // Stmt ::= continue Label? ;
@@ -357,6 +447,12 @@ case class Continue(
     target.map(t => s.append(" ").append(t.toString(indent)))
     s.append(";")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Continue(_, target1), Continue(_, target2)) =>
+      NU.fuzzyCompare(target1, target2)
+    case _ => false
   }
 }
 
@@ -373,6 +469,12 @@ case class Break(
     s.append(";")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Break(_, target1), Break(_, target2)) =>
+      NU.fuzzyCompare(target1, target2)
+    case _ => false
+  }
 }
 
 // Stmt ::= return Expr? ;
@@ -387,6 +489,12 @@ case class Return(
     expr.map(e => s.append(" ").append(e.toString(indent)))
     s.append(";")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Return(_, expr1), Return(_, expr2)) =>
+      NU.fuzzyCompare(expr1, expr2)
+    case _ => false
   }
 }
 
@@ -407,6 +515,12 @@ case class With(
       .append(NU.getIndent(stmtIndent))
       .append(stmt.toString(stmtIndent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (With(_, expr1, stmt1), With(_, expr2, stmt2)) =>
+      expr1 =~ expr2 && stmt1 =~ stmt2
+    case _ => false
   }
 }
 
@@ -458,6 +572,13 @@ case class Switch(
       .append("}")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Switch(_, cond1, frontCases1, defopt1, backCases1), Switch(_, cond2, frontCases2, defopt2, backCases2)) =>
+      cond1 =~ cond2 && NU.fuzzyCompare(frontCases1, frontCases2) &&
+        NU.fuzzyCompare(defopt1.getOrElse(Nil), defopt2.getOrElse(Nil)) && NU.fuzzyCompare(backCases1, backCases2)
+    case _ => false
+  }
 }
 
 // CaseClause ::= case Expr : Stmt*
@@ -483,6 +604,12 @@ case class Case(
       .append(LINE_SEP)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Case(_, cond1, body1), Case(_, cond2, body2)) =>
+      cond1 =~ cond2 && NU.fuzzyCompare(body1, body2)
+    case _ => false
+  }
 }
 
 // Stmt ::= Label : Stmt
@@ -499,6 +626,12 @@ case class LabelStmt(
       .append(stmt.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (LabelStmt(_, label1, stmt1), LabelStmt(_, label2, stmt2)) =>
+      label1 =~ label2 && stmt1 =~ stmt2
+    case _ => false
+  }
 }
 
 // Stmt ::= throw Expr ;
@@ -513,6 +646,11 @@ case class Throw(
       .append(expr.toString(indent))
       .append(";")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Throw(_, expr1), Throw(_, expr2)) => expr1 =~ expr2
+    case _ => false
   }
 }
 
@@ -561,6 +699,13 @@ case class Try(
     })
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Try(_, body1, catchBlock1, fin1), Try(_, body2, catchBlock2, fin2)) =>
+      NU.fuzzyCompare(body1, body2) && NU.fuzzyCompare(catchBlock1, catchBlock2) &&
+        NU.fuzzyCompare(fin1.getOrElse(Nil), fin2.getOrElse(Nil))
+    case _ => false
+  }
 }
 
 // Catch ::= catch ( Id ) { Stmt* }
@@ -588,6 +733,12 @@ case class Catch(
       .append("}")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Catch(_, id1, body1), Catch(_, id2, body2)) =>
+      id1 =~ id2 && NU.fuzzyCompare(body1, body2)
+    case _ => false
+  }
 }
 
 // Stmt ::= debugger ;
@@ -599,6 +750,11 @@ case class Debugger(
     comment.map(c => s.append(c.toString(indent)))
     s.append("debugger;")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Debugger(_), Debugger(_)) => true
+    case _ => false
   }
 }
 
@@ -620,6 +776,13 @@ case class JScriptMemFunDecl(
     if (!members.isEmpty) s.append(".")
     s.append(ftn.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (JScriptMemFunDecl(_, obj1, members1, ftn1, strict1), JScriptMemFunDecl(_, obj2, members2, ftn2, strict2)) =>
+      obj1 =~ obj2 && NU.fuzzyCompare(members1, members2) && ftn1 =~ ftn2 &&
+        strict1 == strict2
+    case _ => false
   }
 }
 
@@ -643,6 +806,12 @@ case class JScriptConditionalCompilation(
       .append(NU.getIndent(indent))
       .append("@*/")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (JScriptConditionalCompilation(_, stmts1), JScriptConditionalCompilation(_, stmts2)) =>
+      NU.fuzzyCompare(stmts1, stmts2)
+    case _ => false
   }
 }
 
@@ -691,6 +860,12 @@ case class JScriptConditionalIf(
       .append(NU.getIndent(indent))
       .append("@end")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (JScriptConditionalIf(_, conds1, trueBranches1, falseBranch1), JScriptConditionalIf(_, conds2, trueBranches2, falseBranch2)) =>
+      NU.fuzzyCompare(conds1, conds2) && NU.fuzzyCompare(trueBranches1, trueBranches2) && NU.fuzzyCompare(falseBranch1, falseBranch2)
+    case _ => false
   }
 }
 

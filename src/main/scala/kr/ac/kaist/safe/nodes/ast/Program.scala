@@ -25,6 +25,11 @@ case class Program(
     comment.map(c => s.append(c.toString(indent)))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Program(_, body1), Program(_, body2)) => body1 =~ body2
+    case _ => false
+  }
 }
 object Program {
   def apply(info: ASTNodeInfo, ses: List[Stmts]): Program =

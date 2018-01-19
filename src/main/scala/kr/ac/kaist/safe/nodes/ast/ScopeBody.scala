@@ -36,6 +36,12 @@ case class TopLevel(
       })
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (TopLevel(_, fds1, vds1, stmts1), TopLevel(_, fds2, vds2, stmts2)) =>
+      NU.fuzzyCompare(fds1, fds2) && NU.fuzzyCompare(vds1, vds2) && NU.fuzzyCompare(stmts1, stmts2)
+    case _ => false
+  }
 }
 
 // Common shape for functions
@@ -61,5 +67,12 @@ case class Functional(
       .append(NU.getIndent(indent))
       .append("}")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Functional(_, fds1, vds1, stmts1, name1, params1, body1), Functional(_, fds2, vds2, stmts2, name2, params2, body2)) =>
+      NU.fuzzyCompare(fds1, fds2) && NU.fuzzyCompare(vds1, vds2) && (stmts1 =~ stmts2) && (name1 =~ name2) &&
+        NU.fuzzyCompare(params1, params2) && (body1 == body2)
+    case _ => false
   }
 }

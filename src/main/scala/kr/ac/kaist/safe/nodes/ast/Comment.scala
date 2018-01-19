@@ -25,4 +25,9 @@ case class Comment(
     s.append(txt).append(LINE_SEP)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Comment(_, txt1), Comment(_, txt2)) => txt1 == txt2
+    case _ => false
+  }
 }
