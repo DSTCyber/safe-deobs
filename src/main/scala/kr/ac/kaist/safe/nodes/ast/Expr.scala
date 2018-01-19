@@ -39,6 +39,12 @@ case class ExprList(
     NU.join(indent, exprs, ", ", s)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ExprList(_, exprs1), ExprList(_, exprs2)) =>
+      NU.fuzzyCompare(exprs1, exprs2)
+    case _ => false
+  }
 }
 
 // Expr ::= Expr ? Expr : Expr
@@ -57,6 +63,12 @@ case class Cond(
       .append(" : ")
       .append(falseBranch.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Cond(_, cond1, trueBranch1, falseBranch1), Cond(_, cond2, trueBranch2, falseBranch2)) =>
+      cond1 =~ cond2 && trueBranch1 =~ trueBranch2 && falseBranch1 =~ falseBranch2
+    case _ => false
   }
 }
 
@@ -77,6 +89,12 @@ case class InfixOpApp(
       .append(right.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (InfixOpApp(_, left1, op1, right1), InfixOpApp(_, left2, op2, right2)) =>
+      left1 =~ left2 && op1 =~ op2 && right1 =~ right2
+    case _ => false
+  }
 }
 
 // Expr ::= Op Expr
@@ -93,6 +111,12 @@ case class PrefixOpApp(
       .append(right.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (PrefixOpApp(_, op1, right1), PrefixOpApp(_, op2, right2)) =>
+      op1 =~ op2 && right1 =~ right2
+    case _ => false
+  }
 }
 
 // Expr ::= Lhs Op
@@ -107,6 +131,12 @@ case class UnaryAssignOpApp(
     s.append(lhs.toString(indent))
       .append(op.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (UnaryAssignOpApp(_, lhs1, op1), UnaryAssignOpApp(_, rhs2, op2)) =>
+      lhs1 =~ rhs2 && op1 =~ op2
+    case _ => false
   }
 }
 
@@ -126,6 +156,12 @@ case class AssignOpApp(
       .append(" ")
       .append(right.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (AssignOpApp(_, lhs1, op1, right1), AssignOpApp(_, lhs2, op2, right2)) =>
+      lhs1 =~ lhs2 && op1 =~ op2 && right1 =~ right2
+    case _ => false
   }
 }
 
@@ -151,6 +187,11 @@ case class This(
     s.append("this")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (This(_), This(_)) => true
+    case _ => false
+  }
 }
 
 // Literal ::= null
@@ -162,6 +203,11 @@ case class Null(
     comment.map(c => s.append(c.toString(indent)))
     s.append("null")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Null(_), Null(_)) => true
+    case _ => false
   }
 }
 
@@ -175,6 +221,11 @@ case class Undefined(
     s.append("undefined")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Undefined(_), Undefined(_)) => true
+    case _ => false
+  }
 }
 
 // Literal ::= true | false
@@ -186,6 +237,11 @@ case class Bool(
     comment.map(c => s.append(c.toString(indent)))
     s.append(if (bool) "true" else "false")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Bool(_, bool1), Bool(_, bool2)) => bool1 == bool2
+    case _ => false
   }
 }
 
@@ -203,6 +259,12 @@ case class DoubleLiteral(
     comment.map(c => s.append(c.toString(indent)))
     s.append(text)
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (DoubleLiteral(_, text1, num1), DoubleLiteral(_, text2, num2)) =>
+      text1 == text2 && num1 == num2
+    case _ => false
   }
 }
 
@@ -222,6 +284,12 @@ case class IntLiteral(
     })
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (IntLiteral(_, intVal1, _), IntLiteral(_, intVal2, _)) =>
+      intVal1.equals(intVal2)
+    case _ => false
+  }
 }
 
 // Literal ::= String
@@ -239,6 +307,12 @@ case class StringLiteral(
     s.append(quote)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (StringLiteral(_, _, escaped1, isRE1), StringLiteral(_, _, escaped2, isRE2)) =>
+      escaped1 == escaped2 && isRE1 == isRE2
+    case _ => false
+  }
 }
 
 // Literal ::= RegularExpression
@@ -253,6 +327,12 @@ case class RegularExpression(
     s.append("/" + body + "/" + flag)
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (RegularExpression(_, body1, flag1), RegularExpression(_, body2, flag2)) =>
+      body1 == body2 && flag1 == flag2
+    case _ => false
+  }
 }
 
 // PrimaryExpr ::= Id
@@ -265,6 +345,11 @@ case class VarRef(
     comment.map(c => s.append(c.toString(indent)))
     s.append(id.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (VarRef(_, id1), VarRef(_, id2)) => id1 =~ id2
+    case _ => false
   }
 }
 
@@ -283,6 +368,12 @@ case class ArrayExpr(
     s.append("]")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ArrayExpr(_, elements1), ArrayExpr(_, elements2)) =>
+      NU.fuzzyCompare(elements1.flatten, elements2.flatten)
+    case _ => false
+  }
 }
 
 // PrimaryExpr ::= [ (Number,)* ]
@@ -299,6 +390,12 @@ case class ArrayNumberExpr(
       " elements are not printed here.\", ")
     s.append("]")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ArrayNumberExpr(_, elements1), ArrayNumberExpr(_, elements2)) =>
+      elements1 == elements2
+    case _ => false
   }
 }
 
@@ -324,6 +421,12 @@ case class ObjectExpr(
       .append("}")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (ObjectExpr(_, members1), ObjectExpr(_, members2)) =>
+      NU.fuzzyCompare(members1, members2)
+    case _ => false
+  }
 }
 
 // PrimaryExpr ::= ( Expr )
@@ -336,6 +439,11 @@ case class Parenthesized(
     comment.map(c => s.append(c.toString(indent)))
     s.append(NU.inParentheses(expr.toString(indent)))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Parenthesized(_, expr1), Parenthesized(_, expr2)) => expr1 =~ expr2
+    case _ => false
   }
 }
 
@@ -365,6 +473,11 @@ case class FunExpr(
       .append("}")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (FunExpr(_, ftn1), FunExpr(_, ftn2)) => ftn1 =~ ftn2
+    case _ => false
+  }
 }
 
 // LHS ::= Lhs [ Expr ]
@@ -382,6 +495,12 @@ case class Bracket(
       .append("]")
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Bracket(_, obj1, index1), Bracket(_, obj2, index2)) =>
+      obj1 =~ obj2 && index1 =~ index2
+    case _ => false
+  }
 }
 
 // LHS ::= Lhs . Id
@@ -398,6 +517,12 @@ case class Dot(
       .append(member.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Dot(_, obj1, member1), Dot(_, obj2, member2)) =>
+      obj1 =~ obj2 && member1 =~ member2
+    case _ => false
+  }
 }
 
 // LHS ::= new Lhs
@@ -411,6 +536,11 @@ case class New(
     s.append("new ")
       .append(lhs.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (New(_, lhs1), New(_, lhs2)) => lhs1 =~ lhs2
+    case _ => false
   }
 }
 
@@ -428,6 +558,12 @@ case class FunApp(
       .append(NU.join(indent, args, ", ", new StringBuilder("")))
       .append(")")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (FunApp(_, fun1, args1), FunApp(_, fun2, args2)) =>
+      fun1 =~ fun2 && NU.fuzzyCompare(args1, args2)
+    case _ => false
   }
 }
 
@@ -448,5 +584,11 @@ case class JScriptMemFunExpr(
     if (!members.isEmpty) s.append(".")
     s.append(ftn.toString(indent))
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (JScriptMemFunExpr(_, obj1, members1, ftn1), JScriptMemFunExpr(_, obj2, members2, ftn2)) =>
+      obj1 =~ obj2 && NU.fuzzyCompare(members1, members2) && ftn1 =~ ftn2
+    case _ => false
   }
 }

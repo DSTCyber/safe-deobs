@@ -799,4 +799,7 @@ object NodeUtil {
       }
     }
   }
+
+  def fuzzyCompare(i1: Iterable[ASTNode], i2: Iterable[ASTNode]): Boolean =
+    (i1 zip i2).forall { case (n1, n2) => n1 =~ n2 }
 }

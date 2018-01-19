@@ -33,6 +33,12 @@ case class Field(
       .append(expr.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Field(_, prop1, expr1), Field(_, prop2, expr2)) =>
+      prop1 =~ prop2 && expr1 =~ expr2
+    case _ => false
+  }
 }
 
 // Member ::= get Property () { FunctionBody }
@@ -57,6 +63,12 @@ case class GetProp(
       .append(NU.getIndent(indent))
       .append("}")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (GetProp(_, prop1, ftn1), GetProp(_, prop2, ftn2)) =>
+      prop1 =~ prop2 && ftn1 =~ ftn2
+    case _ => false
   }
 }
 
@@ -84,5 +96,11 @@ case class SetProp(
       .append(NU.getIndent(indent))
       .append("}")
     s.toString
+  }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (SetProp(_, prop1, ftn1), SetProp(_, prop2, ftn2)) =>
+      prop1 =~ prop2 && ftn1 =~ ftn2
+    case _ => false
   }
 }

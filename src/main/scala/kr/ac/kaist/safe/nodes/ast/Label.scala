@@ -22,4 +22,9 @@ case class Label(
     s.append(id.toString(indent))
     s.toString
   }
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Label(_, id1), Label(_, id2)) => id1 =~ id2
+    case _ => false
+  }
 }

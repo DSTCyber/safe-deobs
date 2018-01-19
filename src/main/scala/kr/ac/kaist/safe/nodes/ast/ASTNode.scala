@@ -31,6 +31,11 @@ trait ASTNode extends Node {
   def end: SourceLoc = span.end
   def line: Int = begin.line
   def offset: Int = begin.offset
+
+  /**
+   * Compare two AST nodes for equality but <b>ignore</b> their \c ASTNodeInfo.
+   */
+  def =~(that: ASTNode): Boolean
 }
 
 // AST Node Information
