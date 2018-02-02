@@ -118,6 +118,8 @@ trait ASTWalker {
       This(walk(info))
     case Null(info) =>
       Null(walk(info))
+    case Undefined(info) =>
+      Undefined(walk(info))
     case Bool(info, isBool) =>
       Bool(walk(info), isBool)
     case n: NumberLiteral =>

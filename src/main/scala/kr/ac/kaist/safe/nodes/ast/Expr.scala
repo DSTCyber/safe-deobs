@@ -165,6 +165,18 @@ case class Null(
   }
 }
 
+// Literal ::= undefined
+case class Undefined(
+    override val info: ASTNodeInfo
+) extends Literal(info: ASTNodeInfo) {
+  override def toString(indent: Int): String = {
+    val s: StringBuilder = new StringBuilder
+    comment.map(c => s.append(c.toString(indent)))
+    s.append("undefined")
+    s.toString
+  }
+}
+
 // Literal ::= true | false
 case class Bool(
     info: ASTNodeInfo, bool: Boolean
