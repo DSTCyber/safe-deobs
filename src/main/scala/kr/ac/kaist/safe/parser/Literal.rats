@@ -34,6 +34,10 @@ public Literal Literal =
      { Span span = createSpan(yyStart,yyCount);
        yyValue = new Null(NodeUtil.makeASTNodeInfo(span));
      }
+   / undefined
+     { Span span = createSpan(yyStart,yyCount);
+       yyValue = new Undefined(NodeUtil.makeASTNodeInfo(span));
+     }
    / true
      { Span span = createSpan(yyStart,yyCount);
        yyValue = new Bool(NodeUtil.makeASTNodeInfo(span), true);

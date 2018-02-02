@@ -87,6 +87,7 @@ transient String static = "static" !(idrest);
 transient void super = "super" !(idrest);
 
 transient void nullL = "null" !(idrest);
+transient void undefined = "undefined" !(idrest);
 transient void true = "true" !(idrest);
 transient void false = "false" !(idrest);
 

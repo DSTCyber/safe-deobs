@@ -126,6 +126,8 @@ trait ASTGeneralWalker[Result] {
       walk(info)
     case Null(info) =>
       walk(info)
+    case Undefined(info) =>
+      walk(info)
     case Bool(info, isBool) =>
       walk(info)
     case n: NumberLiteral =>
