@@ -15,7 +15,7 @@ package kr.ac.kaist.safe.phase
 import scala.util.{ Try, Success }
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.SafeConfig
-import kr.ac.kaist.safe.deobfuscator.{ StringDecoder, ConstantFolder, ConstantPropagator }
+import kr.ac.kaist.safe.deobfuscator._
 import kr.ac.kaist.safe.nodes.ast.Program
 import kr.ac.kaist.safe.util.{ NodeUtil => NU }
 import kr.ac.kaist.safe.util._
@@ -48,6 +48,11 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     val constantPropagator = new ConstantPropagator(program)
     program = constantPropagator.result
     excLog += constantPropagator.excLog
+
+    // Inline functions
+    val functionInliner = new FunctionInliner(program)
+    program = functionInliner.result
+    excLog += functionInliner.excLog
 
     // Simplify
     program = NU.SimplifyWalker.walk(program)
