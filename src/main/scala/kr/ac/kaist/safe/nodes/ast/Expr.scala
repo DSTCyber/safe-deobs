@@ -213,8 +213,8 @@ case class Null(
 
 // Literal ::= undefined
 case class Undefined(
-    override val info: ASTNodeInfo
-) extends Literal(info: ASTNodeInfo) {
+    info: ASTNodeInfo
+) extends Literal {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
@@ -573,7 +573,7 @@ case class JScriptMemFunExpr(
     obj: Id,
     members: List[Id],
     ftn: Functional
-) extends LHS(info: ASTNodeInfo) {
+) extends LHS {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
@@ -601,7 +601,7 @@ case class JScriptMemFunExpr(
  */
 case class EmptyExpr(
     override val info: ASTNodeInfo
-) extends Expr(info: ASTNodeInfo) {
+) extends Expr {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))

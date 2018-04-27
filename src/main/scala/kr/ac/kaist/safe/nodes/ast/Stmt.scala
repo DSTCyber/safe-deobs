@@ -756,7 +756,7 @@ case class JScriptMemFunDecl(
     members: List[Id],
     ftn: Functional,
     strict: Boolean
-) extends Stmt(info: ASTNodeInfo) {
+) extends Stmt {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
@@ -781,7 +781,7 @@ case class JScriptMemFunDecl(
 case class JScriptConditionalCompilation(
     override val info: ASTNodeInfo,
     stmts: List[Stmt]
-) extends Stmt(info: ASTNodeInfo) {
+) extends Stmt {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     s.append("/*@cc_on")
@@ -812,7 +812,7 @@ case class JScriptConditionalIf(
     conds: List[Expr],
     trueBranches: List[Stmt],
     falseBranch: Option[Stmt]
-) extends Stmt(info: ASTNodeInfo) {
+) extends Stmt {
   override def toString(indent: Int): String = {
     val s: StringBuilder = new StringBuilder
     comment.map(c => s.append(c.toString(indent)))
