@@ -294,11 +294,15 @@ class ConstantPropagator(program: Program) {
         // Filter out any variable declarations that have remained constant (or
         // ⊥) in this function - they are just dead code at this point
         // XXX don't do this for now
-        //val filteredVds = env.filterConstantVarDecls(newVds)
-        val filteredVds = newVds
+        val filteredVds = env.filterConstantVarDecls(newVds)
+        // Get the list of variable names that remained constant in this function
+        val constVarIds = newVds.filterNot(filteredVds.toSet).map(_.name)
+        // Rewalk statements and remove all assignments to variables
+        // that remained constant (these assignments are just dead code)
+        val filteredStmts = newStmts.map(new RemoveConstantAssignmentWalker(constVarIds).walk(_))
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        TopLevel(info, newFds, filteredVds, newStmts)
+        TopLevel(info, newFds, filteredVds, filteredStmts)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -331,7 +335,6 @@ class ConstantPropagator(program: Program) {
       // 
       // Following this, the function body is walked. Once the function body
       // has been walked, we can exit that scope and return the new function.
-      //
       case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
         // Create a new stack frame in the environment for the variables and
         // functions in this function
@@ -346,12 +349,15 @@ class ConstantPropagator(program: Program) {
         val newSeBody = seBody.map(walk(_, env))
         // Filter out any variable declarations that have remained constant (or
         // ⊥) in this function - they are just dead code at this point
-        // XXX don't do this for now
-        //val filteredVds = env.filterConstantVarDecls(newVds)
-        val filteredVds = newVds
+        val filteredVds = env.filterConstantVarDecls(newVds)
+        // Get the list of variable names that remained constant in this function
+        val constVarIds = newVds.filterNot(filteredVds.toSet).map(_.name)
+        // Rewalk the function body and remove all assignments to variables
+        // that remained constant (these assignments are just dead code)
+        val filteredSeBody = newSeBody.map(new RemoveConstantAssignmentWalker(constVarIds).walk(_))
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        Functional(info, newFds, filteredVds, SourceElements(seInfo, newSeBody, strict), name, params, body)
+        Functional(info, newFds, filteredVds, SourceElements(seInfo, filteredSeBody, strict), name, params, body)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -421,18 +427,12 @@ class ConstantPropagator(program: Program) {
       // First, expand any compound assignment expressions (e.g. "+=", "<<=",
       // etc.). If the expanded assignment expression is a regular assignment
       // to a variable, update that variable in the environment. Note that this
-      // update will make non-constant expressions go to ⊤. If the expression
-      // remains constant (i.e. doesn't go to ⊤), then we can safely delete
-      // this expression.
+      // update will make non-constant expressions go to ⊤.
       case assign: AssignOpApp => expandCompoundAssignment(assign) match {
         case AssignOpApp(info, vr @ VarRef(_, id), op, right) =>
           val newRight = walk(right, env)
-          env.updateVariable(id, newRight) match {
-            // XXX do not delete expressions for now
-            //case Top => AssignOpApp(info, vr, op, newRight)
-            //case _ => EmptyExpr(info)
-            case _ => AssignOpApp(info, vr, op, newRight)
-          }
+          env.updateVariable(id, newRight)
+          AssignOpApp(info, vr, op, newRight)
         case _ => assign
       }
 
@@ -448,6 +448,28 @@ class ConstantPropagator(program: Program) {
       case _ =>
         val newNode = super.walk(node, env)
         if (newNode != node) walk(newNode, env) else newNode
+    }
+  }
+
+  /**
+   * Performs some form of dead code elimination - removing assignments to
+   * variables that are deemed constant and have thus been propagated out of
+   * existance.
+   *
+   * @param varIds Variable identifiers that have been marked as constant
+   */
+  private class RemoveConstantAssignmentWalker(varIds: List[Id]) extends ASTWalker {
+    // If we are assignment a value to a variable that was deemed constant in
+    // its scope, then we can safely remove all assignments to this variable.
+    // Here "removal" means replace with an empty expression.
+    override def walk(node: Expr): Expr = node match {
+      case aoa @ AssignOpApp(info, vr @ VarRef(_, id), _, _) =>
+        if (varIds.contains(id)) EmptyExpr(info) else aoa
+
+      // Rewalk the node if a change has been made to the AST
+      case _ =>
+        val newNode = super.walk(node)
+        if (newNode != node) walk(newNode) else newNode
     }
   }
 
