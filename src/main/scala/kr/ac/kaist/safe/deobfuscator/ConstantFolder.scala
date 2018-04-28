@@ -16,7 +16,6 @@ import java.math.BigInteger
 
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.nodes.ast._
-import kr.ac.kaist.safe.util.{ NodeUtil => NU }
 
 /**
  * Performs constant folding on an AST.

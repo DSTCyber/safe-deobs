@@ -15,7 +15,6 @@ package kr.ac.kaist.safe.deobfuscator
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.errors.error._
 import kr.ac.kaist.safe.nodes.ast._
-import kr.ac.kaist.safe.util.{ NodeUtil => NU }
 
 import scala.collection.mutable
 
