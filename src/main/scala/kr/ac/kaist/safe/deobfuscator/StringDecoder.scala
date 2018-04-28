@@ -14,7 +14,6 @@ package kr.ac.kaist.safe.deobfuscator
 
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.nodes.ast._
-import kr.ac.kaist.safe.util.{ NodeUtil => NU }
 
 /**
  * Decodes string literals to make them more readable. This includes:
@@ -91,8 +90,8 @@ class StringDecoder(program: Program) {
         super.walk(StringLiteral(info, quote, unescapeUri(str), false))
       // Rewalk the node if a change has been made to the AST
       case _ =>
-        val result = super.walk(node)
-        if (result != node) walk(result) else result
+        val newNode = super.walk(node)
+        if (newNode != node) walk(newNode) else newNode
     }
   }
 
