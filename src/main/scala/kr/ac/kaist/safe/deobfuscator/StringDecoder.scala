@@ -47,12 +47,7 @@ class StringDecoder(program: Program) {
     def unescapeHex(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
-        Character.digit(x3, 16) != -1 => {
-        val chr = combineHexChars(x2, x3)
-        if (chr == '"') "\\\"" ++ unescapeHex(xs)
-        else chr +: unescapeHex(xs)
-      }
-      case Seq('"', xs @ _*) => "\\\"" ++ unescapeHex(xs)
+        Character.digit(x3, 16) != -1 => combineHexChars(x2, x3) +: unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
       case Seq() => ""
     }
@@ -66,12 +61,7 @@ class StringDecoder(program: Program) {
      */
     def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('%', x1, x2, xs @ _*) if Character.digit(x1, 16) != -1 &&
-        Character.digit(x2, 16) != -1 => {
-        val chr = combineHexChars(x1, x2)
-        if (chr == '"') "\\\"" ++ unescapeUri(xs)
-        else chr +: unescapeUri(xs)
-      }
-      case Seq('"', xs @ _*) => "\\\"" ++ unescapeUri(xs)
+        Character.digit(x2, 16) != -1 => combineHexChars(x1, x2) +: unescapeUri(xs)
       case Seq(x, xs @ _*) => x +: unescapeUri(xs)
       case Seq() => ""
     }
