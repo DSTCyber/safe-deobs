@@ -94,7 +94,7 @@ class ConstantFolder(program: Program) {
      * Determine whether an operator is a relational operator, as defined in
      * Section 12.10 of ECMA-262 edition 8.
      */
-    private def isRelationalOperator(op: Op): Boolean = op match {
+    private def isRelationalOp(op: Op): Boolean = op match {
       case Op(_, "<") => true
       case Op(_, ">") => true
       case Op(_, "<=") => true
@@ -108,7 +108,7 @@ class ConstantFolder(program: Program) {
      * Determine whether an operator is an equality operator, as defined in
      * Section 12.11 of ECMA-262 edition 8.
      */
-    private def isEqualityOperator(op: Op): Boolean = op match {
+    private def isEqualityOp(op: Op): Boolean = op match {
       case Op(_, "==") => true
       case Op(_, "!=") => true
       case Op(_, "===") => true
@@ -141,9 +141,29 @@ class ConstantFolder(program: Program) {
     private def isBinaryArithmeticOp(op: Op): Boolean =
       isMultiplicativeOp(op) || isAdditiveOp(op) || isBitwiseShiftOperator(op)
 
-    /** Returns \c true if the operation is a comparison operator. */
-    private def isComparisonOp(op: Op): Boolean =
-      isRelationalOperator(op) || isEqualityOperator(op)
+    /**
+     * Converts a JavaScript boolean relational operation to a \c Boolean
+     * method.
+     */
+    private def opToBoolRelationalFunc(op: Op): Option[(Boolean, Boolean) => Boolean] = op match {
+      case Op(_, "<") => Some((x, y) => x < y)
+      case Op(_, ">") => Some((x, y) => x > y)
+      case Op(_, ">=") => Some((x, y) => x >= y)
+      case Op(_, "<=") => Some((x, y) => x <= y)
+      case _ => None
+    }
+
+    /**
+     * Converts a JavaScript boolean equality operation to a \c Boolean
+     * method.
+     */
+    private def opToBoolEqualityFunc(op: Op): Option[(Boolean, Boolean) => Boolean] = op match {
+      case Op(_, "==") => Some((x, y) => x == y)
+      case Op(_, "!=") => Some((x, y) => x != y)
+      case Op(_, "===") => Some((x, y) => x == y)
+      case Op(_, "!==") => Some((x, y) => x != y)
+      case _ => None
+    }
 
     /**
      * Converts a JavaScript binary arithmetic operation to a \c BigInteger
@@ -163,25 +183,32 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript integer comparison operation to a \c BigInteger
+     * Converts a JavaScript integer relational operation to a \c BigInteger
      * method.
      */
-    private def opToIntComparisonFunc(op: Op): Option[(BigInteger, BigInteger) => Boolean] = op match {
+    private def opToIntRelationalFunc(op: Op): Option[(BigInteger, BigInteger) => Boolean] = op match {
       case Op(_, "<") => Some((x, y) => x.compareTo(y) < 0)
-      case Op(_, "==") => Some((x, y) => x.compareTo(y) == 0)
       case Op(_, ">") => Some((x, y) => x.compareTo(y) > 0)
       case Op(_, ">=") => Some((x, y) => x.compareTo(y) >= 0)
-      case Op(_, "!=") => Some((x, y) => x.compareTo(y) != 0)
       case Op(_, "<=") => Some((x, y) => x.compareTo(y) <= 0)
-      case Op(_, "===") => Some((x, y) => x.compareTo(y) == 0)
-      case Op(_, "!==") => Some((x, y) => x.compareTo(y) != 0)
       case _ => None
     }
 
     /**
-     * Converts a JavaScript string comparison operation to a \c String method.
+     * Converts a JavaScript integer equality operation to a \c BigInteger
+     * method.
      */
-    private def opToStringComparisonFunc(op: Op): Option[(String, String) => Boolean] = op match {
+    private def opToIntEqualityFunc(op: Op): Option[(BigInteger, BigInteger) => Boolean] = op match {
+      case Op(_, "==") => Some((x, y) => x.compareTo(y) == 0)
+      case Op(_, "!=") => Some((x, y) => x.compareTo(y) != 0)
+      case Op(_, "===") => Some((x, y) => x.compareTo(y) == 0)
+      case Op(_, "!==") => Some((x, y) => x.compareTo(y) != 0)
+      case _ => None
+    }
+    /**
+     * Converts a JavaScript string equality operation to a \c String method.
+     */
+    private def opToStringEqualityFunc(op: Op): Option[(String, String) => Boolean] = op match {
       case Op(_, "==") => Some((x, y) => x == y)
       case Op(_, "!=") => Some((x, y) => x != y)
       case Op(_, "===") => Some((x, y) => x == y)
@@ -202,27 +229,137 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript double comparison operation to a \c Double method.
+     * Converts a JavaScript double relational operation to a \c Double method.
      */
-    // TODO reduce code duplication with opToIntComparisonFunc
-    private def opToDoubleComparisonFunc(op: Op): Option[(Double, Double) => Boolean] = op match {
+    // TODO reduce code duplication with opToIntRelationalFunc
+    private def opToDoubleRelationalFunc(op: Op): Option[(Double, Double) => Boolean] = op match {
       case Op(_, "<") => Some((x, y) => x.compareTo(y) < 0)
-      case Op(_, "==") => Some((x, y) => x.compareTo(y) == 0)
       case Op(_, ">") => Some((x, y) => x.compareTo(y) > 0)
       case Op(_, ">=") => Some((x, y) => x.compareTo(y) >= 0)
-      case Op(_, "!=") => Some((x, y) => x.compareTo(y) != 0)
       case Op(_, "<=") => Some((x, y) => x.compareTo(y) <= 0)
+      case _ => None
+    }
+
+    /**
+     * Converts a JavaScript double equality operation to a \c Double method.
+     */
+    // TODO reduce code duplication with opToIntEqualityFunc
+    private def opToDoubleEqualityFunc(op: Op): Option[(Double, Double) => Boolean] = op match {
+      case Op(_, "==") => Some((x, y) => x.compareTo(y) == 0)
+      case Op(_, "!=") => Some((x, y) => x.compareTo(y) != 0)
       case Op(_, "===") => Some((x, y) => x.compareTo(y) == 0)
       case Op(_, "!==") => Some((x, y) => x.compareTo(y) != 0)
       case _ => None
     }
-
     /**
      * Implicitly converts a \c Boolean to a \c Long - just like JavaScript!
      */
     private implicit def boolToInt(b: Boolean): Long = if (b) 1 else 0
 
     override def walk(node: Expr): Expr = node match {
+      // As per Section 7.2.14 of ECMA-262 edition 8, the strict equality
+      // operator will return false if the left and right types are different.
+      // If they are the same, we can reduce this to an abstract equality
+      // operation between two literals (see Section 7.2.13 of ECMA-262 edition
+      // 8).
+      case InfixOpApp(info, left: Literal, Op(opInfo, "==="), right: Literal) =>
+        if (left.getClass != right.getClass) Bool(info, false)
+        else walk(InfixOpApp(info, left, Op(opInfo, "=="), right))
+
+      // Simplifies an equality operation on two null literals into a single
+      // boolean literal.
+      //
+      // We can treat the null literals as the same values (it doesn't
+      // really matter what their type is - I've just picked bool) and perform
+      // a standard equality operation on these two literals.
+      case InfixOpApp(info, _: Null, op, _: Null) if isEqualityOp(op) =>
+        opToBoolEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(false, false))
+          case None => node
+        }
+
+      // As per Section 7.2.13 of ECMA-262 edition 8, Null == Undefined and
+      // Undefined == Null will always return true (and conversely
+      // Null != Undefined will return false).
+      //
+      // We can achieve the same result by treating the null and undefined
+      // literals as having the same value (it doesn't really matter what
+      // their type is - I've just picked bool) and perform a standard
+      // equality operation on these two literals.
+      case InfixOpApp(info, _: Null, op, _: Undefined) if isEqualityOp(op) =>
+        opToBoolEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(false, false))
+          case None => node
+        }
+      case InfixOpApp(info, _: Undefined, op, _: Null) if isEqualityOp(op) =>
+        opToBoolEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(false, false))
+          case None => node
+        }
+
+      // Comparing a Null literal to any other type of literal will always
+      // return false, as per Section 7.2.13 of ECMA-262 edition 8.
+      case InfixOpApp(info, _: Null, op, _: Literal) if isEqualityOp(op) =>
+        Bool(info, false)
+      case InfixOpApp(info, _: Literal, op, _: Null) if isEqualityOp(op) =>
+        Bool(info, false)
+
+      // Simplifies an equality operation on two undefined literals into a
+      // single boolean literal.
+      //
+      // We can treat the undefined literals as the same values (it doesn't
+      // really matter what their type is - I've just picked bool) and perform
+      // a standard equality operation on these two literals.
+      case InfixOpApp(info, _: Undefined, op, _: Undefined) if isEqualityOp(op) =>
+        opToBoolEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(false, false))
+          case None => node
+        }
+
+      // Comparing an Undefined literal to any other type of literal will always
+      // return false, as per Section 7.2.13 of ECMA-262 edition 8.
+      case InfixOpApp(info, _: Undefined, op, _: Literal) if isEqualityOp(op) =>
+        Bool(info, false)
+      case InfixOpApp(info, _: Literal, op, _: Undefined) if isEqualityOp(op) =>
+        Bool(info, false)
+
+      // Simplifies a binary arithmetic operation (e.g. addition, subtraction,
+      // etc.) on two boolean literals into a single integer literal.
+      //
+      // This is because boolean values are coerced into integer values as
+      // follows:
+      //
+      //   false => 0
+      //   true  => 1
+      //
+      // This is done implicitly with the boolToInt method.
+      case InfixOpApp(info, Bool(_, left), op, Bool(_, right)) if isBinaryArithmeticOp(op) =>
+        opToIntArithmeticFunc(op) match {
+          case Some(opFunc) => IntLiteral(info, opFunc(BigInteger.valueOf(left), BigInteger.valueOf(right)), 10)
+          case None => node
+        }
+
+      // Simplifies a comparison operation (relational and equality) on two
+      // boolean literals into a single boolean literal.
+      //
+      // We do this by first coercing the boolean literals into integer values
+      // as per Section 7.1.3 in ECMA-262 edition 8:
+      //
+      //   false => 0
+      //   true  => 1
+      //
+      // This is done implicitly with the boolToInt method.
+      case InfixOpApp(info, Bool(_, left), op, Bool(_, right)) if isRelationalOp(op) =>
+        opToBoolRelationalFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, right))
+          case None => node
+        }
+      case InfixOpApp(info, Bool(_, left), op, Bool(_, right)) if isEqualityOp(op) =>
+        opToBoolEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, right))
+          case None => node
+        }
+
       // Simplifies a binary arithmetic operation (e.g. addition, subtraction,
       // etc.) on two integer literals into a single integer literal.
       //
@@ -240,17 +377,46 @@ class ConstantFolder(program: Program) {
           case None => node
         }
 
-      // Simplifies a comparison operation (e.g. less than, equality, etc.) on
+      // Simplifies a comparison operation (relational and equality) on
       // two integer literals into a single boolean literal.
       //
       // SAFE uses BigInteger objects to represent integer literals, so we must
       // map the SAFE operator to a BigInteger method that performs the same
       // operation (i.e. preserves its semantics). This mapping is performed by
-      // the opToIntComparisonFunc method. If no corresponding BigInteger
-      // method exists, the AST node is returned unchanged.
-      case InfixOpApp(info, IntLiteral(_, left, _), op, IntLiteral(_, right, _)) if isComparisonOp(op) =>
-        opToIntComparisonFunc(op) match {
+      // the opToInt{Relational,Equality}Func method. If no corresponding
+      // BigInteger method exists, the AST node is returned unchanged.
+      case InfixOpApp(info, IntLiteral(_, left, _), op, IntLiteral(_, right, _)) if isRelationalOp(op) =>
+        opToIntRelationalFunc(op) match {
           case Some(opFunc) => Bool(info, opFunc(left, right))
+          case None => node
+        }
+      case InfixOpApp(info, IntLiteral(_, left, _), op, IntLiteral(_, right, _)) if isEqualityOp(op) =>
+        opToIntEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, right))
+          case None => node
+        }
+
+      // Simplifies a comparison operation (relational and equality) on an
+      // integer an boolean literal into a single boolean literal. The usual
+      // coercing of booleans to integers occurs prior to the comparison.
+      case InfixOpApp(info, IntLiteral(_, left, _), op, Bool(_, right)) if isRelationalOp(op) =>
+        opToIntRelationalFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, BigInteger.valueOf(right)))
+          case None => node
+        }
+      case InfixOpApp(info, IntLiteral(_, left, _), op, Bool(_, right)) if isEqualityOp(op) =>
+        opToIntEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, BigInteger.valueOf(right)))
+          case None => node
+        }
+      case InfixOpApp(info, Bool(_, left), op, IntLiteral(_, right, _)) if isRelationalOp(op) =>
+        opToIntRelationalFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(BigInteger.valueOf(left), right))
+          case None => node
+        }
+      case InfixOpApp(info, Bool(_, left), op, IntLiteral(_, right, _)) if isEqualityOp(op) =>
+        opToIntEqualityFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(BigInteger.valueOf(left), right))
           case None => node
         }
 
@@ -270,28 +436,33 @@ class ConstantFolder(program: Program) {
           case None => node
         }
 
-      // Simplifies a comparison operation (e.g. less than, equality, etc.) on
-      // two double literals into a single boolean literal.
+      // Simplifies a comparison operation (relational and equality) on two
+      // double literals into a single boolean literal.
       //
       // SAFE uses Double objects to represent double literals, so we must map
       // the SAFE operator to a Double method that performs the same operation
       // (i.e. preserves its semantics). This mapping is performed by the
-      // opToDoubleComparisonFunc method. If no corresponding Double method
-      // exists, the AST node is returned unchanged.
-      case InfixOpApp(info, DoubleLiteral(_, _, left), op, DoubleLiteral(_, _, right)) if isComparisonOp(op) =>
-        opToDoubleComparisonFunc(op) match {
+      // opToDouble{Relational,Equality}Func method. If no corresponding Double
+      // method exists, the AST node is returned unchanged.
+      case InfixOpApp(info, DoubleLiteral(_, _, left), op, DoubleLiteral(_, _, right)) if isRelationalOp(op) =>
+        opToDoubleRelationalFunc(op) match {
+          case Some(opFunc) => Bool(info, opFunc(left, right))
+          case None => node
+        }
+      case InfixOpApp(info, DoubleLiteral(_, _, left), op, DoubleLiteral(_, _, right)) if isEqualityOp(op) =>
+        opToDoubleEqualityFunc(op) match {
           case Some(opFunc) => Bool(info, opFunc(left, right))
           case None => node
         }
 
-      // Simplifies a comparison operation (equality) on two string literals
-      // into a single boolean literal.
+      // Simplifies an equality operation on two string literals into a single
+      // boolean literal.
       //
       // We need to convert SAFE's Op class to a comparison method that
       // operates on Scala strings. If no corresponding method exists, the AST
       // node is returned unchanged.
-      case InfixOpApp(info, StringLiteral(_, _, left, false), op, StringLiteral(_, _, right, false)) if isComparisonOp(op) =>
-        opToStringComparisonFunc(op) match {
+      case InfixOpApp(info, StringLiteral(_, _, left, false), op, StringLiteral(_, _, right, false)) if isEqualityOp(op) =>
+        opToStringEqualityFunc(op) match {
           case Some(opFunc) => Bool(info, opFunc(left, right))
           case None => node
         }
@@ -316,6 +487,13 @@ class ConstantFolder(program: Program) {
         StringLiteral(info, quote, s"${str}${bool}", false)
       case InfixOpApp(info, Bool(_, bool), Op(_, "+"), StringLiteral(_, quote, str, false)) =>
         StringLiteral(info, quote, s"${bool}${str}", false)
+
+      // Simplifies the concatenation of a string literal with a double literal
+      // into a single string literal
+      case InfixOpApp(info, StringLiteral(_, quote, str, false), Op(_, "+"), DoubleLiteral(_, _, num)) =>
+        StringLiteral(info, quote, s"${str}${num}", false)
+      case InfixOpApp(info, DoubleLiteral(_, _, num), Op(_, "+"), StringLiteral(_, quote, str, false)) =>
+        StringLiteral(info, quote, s"${num}${str}", false)
 
       // Simplifies a binary arithmetic operation (e.g. addition, subtraction,
       // etc.) on an integer and boolean into an integer literal.
@@ -381,24 +559,38 @@ class ConstantFolder(program: Program) {
           case _ => Bool(info, false)
         }
 
+      // Applies the unary - operator to a boolean literal, which turns the
+      // boolean literal into a number and negates it (as described in Section
+      // 12.5.7 of ECMA-262 edition 8)
+      case PrefixOpApp(info, Op(_, "-"), Bool(_, bool)) =>
+        IntLiteral(info, BigInteger.valueOf(bool).negate(), 10)
+
+      // Applies the unary - operator to an integer literal, negating it.
+      case PrefixOpApp(info, Op(_, "-"), IntLiteral(_, intVal, radix)) =>
+        IntLiteral(info, intVal.negate(), radix)
+
+      // Applies the unary - operator to a double literal, negating it.
+      case PrefixOpApp(info, Op(_, "-"), DoubleLiteral(_, text, double)) =>
+        DoubleLiteral(info, text, -double)
+
       // Simplifies the typeof a literal expression. Returns the result defined
       // in Table 35 of ECMA-262 edition 8
-      case PrefixOpApp(info, Op(_, "typeof"), Undefined(_)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: Undefined) =>
         StringLiteral(info, "\"", "undefined", false)
 
-      case PrefixOpApp(info, Op(_, "typeof"), Null(_)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: Null) =>
         StringLiteral(info, "\"", "object", false)
 
-      case PrefixOpApp(info, Op(_, "typeof"), Bool(_, _)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: Bool) =>
         StringLiteral(info, "\"", "boolean", false)
 
-      case PrefixOpApp(info, Op(_, "typeof"), DoubleLiteral(_, _, _)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: DoubleLiteral) =>
         StringLiteral(info, "\"", "number", false)
 
-      case PrefixOpApp(info, Op(_, "typeof"), IntLiteral(_, _, _)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: IntLiteral) =>
         StringLiteral(info, "\"", "number", false)
 
-      case PrefixOpApp(info, Op(_, "typeof"), StringLiteral(_, _, _, _)) =>
+      case PrefixOpApp(info, Op(_, "typeof"), _: StringLiteral) =>
         StringLiteral(info, "\"", "string", false)
 
       // Rewalk the node if a change has been made to the AST
