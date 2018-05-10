@@ -688,6 +688,9 @@ object NodeUtil {
         case ExprStmt(_, _: EmptyExpr, _) =>
           repeat = true
           simplify(rest)
+        case StmtUnit(_, Nil) =>
+          repeat = true;
+          simplify(rest)
         case _ => List(stmt) ++ simplify(rest)
       }
     }
@@ -707,10 +710,14 @@ object NodeUtil {
     }
 
     override def walk(node: Stmt): Stmt = node match {
+      case ABlock(info, List(ABlock(_, ss, _)), b) =>
+        walk(ABlock(info, ss, b))
       case ABlock(info, List(stmt), b) =>
         ABlock(info, List(walk(stmt)), b)
-      case ABlock(info, ABlock(_, Nil, _) :: stmts, b) => walk(ABlock(info, stmts, b))
-      case ABlock(info, ABlock(_, ss, _) :: stmts, b) => walk(ABlock(info, ss ++ stmts, b))
+      case ABlock(info, ABlock(_, Nil, _) :: stmts, b) =>
+        walk(ABlock(info, stmts, b))
+      case ABlock(info, ABlock(_, ss, _) :: stmts, b) =>
+        walk(ABlock(info, ss ++ stmts, b))
       case ABlock(info, stmts, b) =>
         ABlock(info, simplify(stmts.map(walk)), b)
       case Switch(info, cond, frontCases, Some(stmts), backCases) =>
@@ -724,6 +731,11 @@ object NodeUtil {
         Functional(i, fds.map(walk), vds,
           SourceElements(info, simplify(body.map(walk)), strict),
           name, params, bodyS)
+    }
+
+    override def walk(node: Case): Case = node match {
+      case Case(info, cond, body) =>
+        Case(info, cond, simplify(body.map(walk)))
     }
   }
 
