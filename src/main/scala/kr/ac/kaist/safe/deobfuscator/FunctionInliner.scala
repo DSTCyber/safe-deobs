@@ -52,12 +52,26 @@ class FunctionInliner(program: Program) {
      *         inline them
      */
     private def getInlinableFunctions(funcs: List[Functional]): Env =
-      funcs.foldLeft(Map[Id, Option[Expr]]())((m, func) => func.stmts.body.lastOption match {
-        // Update the map with an inlinable function
-        case Some(Return(_, expr)) => m + (func.name -> expr)
-        case None => m + (func.name -> None)
-        // Anything else is too complex to inline
-        case _ => m
+      funcs.foldLeft(Map[Id, Option[Expr]]())((m, func) => {
+        val body = func.stmts.body
+        // We can only inline functions with a single return statement
+        if (body.length == 1) {
+          body.last match {
+            // If the function returns a literal expression, we can inline it
+            // with that literal expression
+            case Return(_, lit @ Some(_: Literal)) => m + (func.name -> lit)
+            // If the function consists of an empty return statement, we can
+            // just delete it
+            case Return(_, None) => m + (func.name -> None)
+            // The function is too complex to inline if it returns something
+            // more than a literal expression
+            case _ => m
+          }
+        } else {
+          // The function has too many statements and therefore cannot be
+          // inlined
+          m
+        }
       })
 
     override def walk(node: TopLevel, env: Env): TopLevel = node match {
