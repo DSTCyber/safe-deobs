@@ -67,8 +67,8 @@ class ConstantPropagator(program: Program) {
   private case object Top extends AbstractValue
 
   /**
-   * Bottom (⊥) is the most accurate value that can be assigned. It captures the
-   * case where the set of represented states is empty.
+   * Bottom (⊥) is the most accurate value that can be assigned. It captures
+   * the case where the set of represented states is empty.
    */
   private case object Bottom extends AbstractValue
 
@@ -178,8 +178,8 @@ class ConstantPropagator(program: Program) {
           m += nameText -> absVal
           absVal
         // Technically the variable should have been defined before it can be
-        // updated, but JavaScript is a funny language so we'll add the variable
-        // to the current stack frame.
+        // updated, but JavaScript is a funny language so we'll add the
+        // variable to the current stack frame.
         case None => createVariable(name, value)
       }
     }
