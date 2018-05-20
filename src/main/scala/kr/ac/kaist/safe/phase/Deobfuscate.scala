@@ -64,9 +64,7 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     println("run simplifier")
     newProgram = NU.SimplifyWalker.walk(newProgram)
 
-    if (newExcLog.hasError) {
-      (newProgram, newExcLog)
-    } else if (newProgram =~ program) {
+    if (newExcLog.hasError || newProgram =~ program) {
       (newProgram, newExcLog)
     } else {
       // XXX not yet working
