@@ -18,8 +18,8 @@ import kr.ac.kaist.safe.nodes.ast._
 import scala.annotation.tailrec
 
 /**
- * Removes dead (i.e. unexecutable) branches in \c if statements when the
- * branch condition is a constant value.
+ * Removes dead (i.e. unexecutable) branches in `if` and `switch` statements
+ * when the branch condition is a constant value.
  */
 class DeadBranchRemover(program: Program) {
   ////////////////////////////////////////////////////////////////
@@ -40,7 +40,7 @@ class DeadBranchRemover(program: Program) {
      * per Section 7.1.2 of ECMA-262 edition 8.
      *
      * @param cond The conditional expression
-     * @return The result of the \c toBoolean evaluation
+     * @return The result of the `toBoolean` evaluation
      */
     private def evalLiteralCondition(cond: Literal): Boolean = cond match {
       case _: This => true

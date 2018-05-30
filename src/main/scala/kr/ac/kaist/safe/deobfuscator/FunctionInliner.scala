@@ -19,7 +19,7 @@ import kr.ac.kaist.safe.nodes.ast._
 /**
  * Performs function inlining on an AST.
  *
- * Only trivially simple functions (i.e. those with a single <tt>return</tt>
+ * Only trivially simple functions (i.e. those with a single `return`
  * statement) are inlined.
  */
 class FunctionInliner(program: Program) {
@@ -41,15 +41,15 @@ class FunctionInliner(program: Program) {
     /**
      * Generate a map of inlinable functions.
      *
-     * A function is inlinable if it only contains a single <tt>return</tt>
-     * statement, which we can trivially inline.
+     * A function is inlinable if it only contains a single `return` statement,
+     * which we can trivially inline.
      *
      * The map associates the name of an inlinable function with the value
      * that calls to this function will be replaced with.
      *
      * @param funcs A list of functions
      * @return A map of inlinable functions and the expression that we will
-     *         inline them
+     *         inline
      */
     private def getInlinableFunctions(funcs: List[Functional]): Env =
       funcs.foldLeft(Map[Id, Option[Expr]]())((m, func) => {

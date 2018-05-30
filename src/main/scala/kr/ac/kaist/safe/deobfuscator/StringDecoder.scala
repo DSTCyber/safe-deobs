@@ -19,9 +19,9 @@ import kr.ac.kaist.safe.nodes.ast._
  * Decodes string literals to make them more readable. This includes:
  *
  *  - Converting hexadecimal escape sequences to ASCII values when possible.
- *    E.g. \c \x48\x65\x6c\x6c\x6f becomes "Hello"
+ *    E.g. `\x48\x65\x6c\x6c\x6f` becomes "Hello"
  *  - URI-encoded strings are converted to readable strings. E.g. the string
- *   \c %48%65%6C%6C%6F becomes "Hello"
+ *    `%48%65%6C%6C%6F` becomes "Hello"
  */
 class StringDecoder(program: Program) {
   ////////////////////////////////////////////////////////////////
