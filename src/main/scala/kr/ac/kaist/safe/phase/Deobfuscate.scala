@@ -31,37 +31,31 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     var newExcLog = excLog
 
     // Decode strings
-    println("run string decoder")
     val stringDecoder = new StringDecoder(newProgram)
     newProgram = stringDecoder.result
     newExcLog += stringDecoder.excLog
 
     // Fold constants
-    println("run constant folder")
     val constantFolder = new ConstantFolder(newProgram)
     newProgram = constantFolder.result
     newExcLog += constantFolder.excLog
 
     // Propagate constants
-    println("run constant propagator")
     val constantPropagator = new ConstantPropagator(newProgram)
     newProgram = constantPropagator.result
     newExcLog += constantPropagator.excLog
 
     // Inline functions
-    println("run function inliner")
     val functionInliner = new FunctionInliner(newProgram)
     newProgram = functionInliner.result
     newExcLog += functionInliner.excLog
 
     // Remove dead branches
-    println("run dead branch remover")
     val deadBranchRemover = new DeadBranchRemover(newProgram)
     newProgram = deadBranchRemover.result
     newExcLog += deadBranchRemover.excLog
 
     // Simplify
-    println("run simplifier")
     newProgram = NU.SimplifyWalker.walk(newProgram)
 
     if (newExcLog.hasError || newProgram =~ program) {

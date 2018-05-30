@@ -137,12 +137,12 @@ class ConstantFolder(program: Program) {
       case _ => false
     }
 
-    /** Returns \c true if the operator is a binary arithmetic operator. */
+    /** Returns `true` if the operator is a binary arithmetic operator. */
     private def isBinaryArithmeticOp(op: Op): Boolean =
       isMultiplicativeOp(op) || isAdditiveOp(op) || isBitwiseShiftOperator(op)
 
     /**
-     * Converts a JavaScript boolean relational operation to a \c Boolean
+     * Converts a JavaScript boolean relational operation to a `Boolean`
      * method.
      */
     private def opToBoolRelationalFunc(op: Op): Option[(Boolean, Boolean) => Boolean] = op match {
@@ -154,8 +154,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript boolean equality operation to a \c Boolean
-     * method.
+     * Converts a JavaScript boolean equality operation to a `Boolean` method.
      */
     private def opToBoolEqualityFunc(op: Op): Option[(Boolean, Boolean) => Boolean] = op match {
       case Op(_, "==") => Some((x, y) => x == y)
@@ -166,7 +165,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript binary arithmetic operation to a \c BigInteger
+     * Converts a JavaScript binary arithmetic operation to a `BigInteger`
      * method.
      */
     private def opToIntArithmeticFunc(op: Op): Option[(BigInteger, BigInteger) => BigInteger] = op match {
@@ -183,7 +182,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript integer relational operation to a \c BigInteger
+     * Converts a JavaScript integer relational operation to a `BigInteger`
      * method.
      */
     private def opToIntRelationalFunc(op: Op): Option[(BigInteger, BigInteger) => Boolean] = op match {
@@ -195,7 +194,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript integer equality operation to a \c BigInteger
+     * Converts a JavaScript integer equality operation to a `BigInteger`
      * method.
      */
     private def opToIntEqualityFunc(op: Op): Option[(BigInteger, BigInteger) => Boolean] = op match {
@@ -206,7 +205,7 @@ class ConstantFolder(program: Program) {
       case _ => None
     }
     /**
-     * Converts a JavaScript string equality operation to a \c String method.
+     * Converts a JavaScript string equality operation to a `String` method.
      */
     private def opToStringEqualityFunc(op: Op): Option[(String, String) => Boolean] = op match {
       case Op(_, "==") => Some((x, y) => x == y)
@@ -217,7 +216,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript double binary arithmetic operation to a \c Double
+     * Converts a JavaScript double binary arithmetic operation to a `Double`
      * method.
      */
     private def opToDoubleArithmeticFunc(op: Op): Option[(Double, Double) => Double] = op match {
@@ -229,7 +228,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript double relational operation to a \c Double method.
+     * Converts a JavaScript double relational operation to a `Double` method.
      */
     // TODO reduce code duplication with opToIntRelationalFunc
     private def opToDoubleRelationalFunc(op: Op): Option[(Double, Double) => Boolean] = op match {
@@ -241,7 +240,7 @@ class ConstantFolder(program: Program) {
     }
 
     /**
-     * Converts a JavaScript double equality operation to a \c Double method.
+     * Converts a JavaScript double equality operation to a `Double` method.
      */
     // TODO reduce code duplication with opToIntEqualityFunc
     private def opToDoubleEqualityFunc(op: Op): Option[(Double, Double) => Boolean] = op match {
@@ -252,7 +251,7 @@ class ConstantFolder(program: Program) {
       case _ => None
     }
     /**
-     * Implicitly converts a \c Boolean to a \c Long - just like JavaScript!
+     * Implicitly converts a `Boolean` to a `Long` - just like JavaScript!
      */
     private implicit def boolToInt(b: Boolean): Long = if (b) 1 else 0
 
@@ -316,8 +315,8 @@ class ConstantFolder(program: Program) {
           case None => node
         }
 
-      // Comparing an Undefined literal to any other type of literal will always
-      // return false, as per Section 7.2.13 of ECMA-262 edition 8.
+      // Comparing an Undefined literal to any other type of literal will
+      // always return false, as per Section 7.2.13 of ECMA-262 edition 8.
       case InfixOpApp(info, _: Undefined, op, _: Literal) if isEqualityOp(op) =>
         Bool(info, false)
       case InfixOpApp(info, _: Literal, op, _: Undefined) if isEqualityOp(op) =>
