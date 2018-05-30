@@ -15,13 +15,12 @@ package kr.ac.kaist.safe.deobfuscator
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.errors.error._
 import kr.ac.kaist.safe.nodes.ast._
+import kr.ac.kaist.safe.util.Span
 
 import scala.collection.mutable
 
 /**
  * Performs constant propagation on an AST.
- *
- * Assumes that the \c ConstantFolder phase has been run prior to this phase.
  *
  * The algorithm has been adapted from
  * http://www.cs.tau.ac.il/~msagiv/courses/pa07/lecture2-notes-update.pdf
@@ -41,7 +40,7 @@ class ConstantPropagator(program: Program) {
 
   /**
    * Represents the possible abstract values of a variable in our constant
-   * propagation domain. This  domain represents the set `Expr ∪ {⊤, ⊥}`.
+   * propagation domain. This domain represents the set `Literal ∪ ⊤`.
    */
   private sealed abstract class AbstractValue {
     /**
@@ -52,10 +51,8 @@ class ConstantPropagator(program: Program) {
      */
     def join(other: AbstractValue): AbstractValue = this match {
       case Top => Top
-      case Bottom => other
       case Constant(c1) => other match {
         case Top => Top
-        case Bottom => Constant(c1)
         case Constant(c2) => if (c1 =~ c2) Constant(c1) else Top
       }
     }
@@ -67,15 +64,15 @@ class ConstantPropagator(program: Program) {
   private case object Top extends AbstractValue
 
   /**
-   * Bottom (⊥) is the most accurate value that can be assigned. It captures
-   * the case where the set of represented states is empty.
-   */
-  private case object Bottom extends AbstractValue
-
-  /**
    * An abstract representation of a constant JavaScript expression.
    */
-  private case class Constant(expr: Expr) extends AbstractValue
+  private case class Constant(expr: Literal) extends AbstractValue
+
+  /**
+   * Convenience `undefined` abstract variable.
+   */
+  private val undefined: AbstractValue =
+    Constant(Undefined(ASTNodeInfo(Span())))
 
   /**
    * Takes a JavaScript expression and transforms it into an abstract value in
@@ -90,7 +87,7 @@ class ConstantPropagator(program: Program) {
 
   /**
    * Mapping between the program's variables and their abstract values in the
-   * set <tt>Expr ∪ {⊤, ⊥}</tt>.
+   * set `Literal` ∪ ⊤`.
    */
   private type VarMap = mutable.Map[String, AbstractValue]
 
@@ -111,8 +108,8 @@ class ConstantPropagator(program: Program) {
    * mapping is destroyed.
    *
    * There should always be at least one frame in the stack. This frame
-   * corresponds to the global scope and is created by the \c TopLevel AST
-   * element.
+   * corresponds to the top level (global) scope and is created by the
+   * `TopLevel` AST element.
    */
   private class Env(val variables: VarStack = mutable.ArrayStack()) {
     /**
@@ -121,7 +118,7 @@ class ConstantPropagator(program: Program) {
     def copy(): Env = {
       val newVariables: VarStack = mutable.ArrayStack()
       variables.foreach(varMap => newVariables.push(varMap.clone))
-      new Env(newVariables)
+      new Env(newVariables.reverse)
     }
 
     /**
@@ -144,11 +141,13 @@ class ConstantPropagator(program: Program) {
     /**
      * Create a new, uninitialized variable in the environment.
      *
-     * The variable is added to the top stack frame and initialized to ⊥.
+     * The variable is added to the top stack frame and initialized to
+     * `undefined` (Secrion 13.3.2 of ECMA-262 edition 8).
      */
     def createVariable(name: Id): AbstractValue = {
-      variables.head += name.text -> Bottom
-      Bottom
+      val uninitialized = Constant(Undefined(name.info))
+      variables.head += name.text -> uninitialized
+      uninitialized
     }
 
     /**
@@ -188,23 +187,12 @@ class ConstantPropagator(program: Program) {
      * Retrieves a variable from the environment.
      *
      * Each scope is searched from "newest" to "oldest", where the oldest scope
-     * is the global scope. If the variable isn't found \c None is returned.
+     * is the global scope. If the variable isn't found `None` is returned.
      */
     def getVariable(name: Id): Option[AbstractValue] = {
       val nameText = name.text
       variables.find(_.contains(nameText)).flatMap(_.get(nameText))
     }
-
-    /**
-     * Get a list of non-constant variable declarations in the current (i.e.
-     * top) stack frame. This is essentially a filter on variables that have
-     * been set to ⊤.
-     *
-     * If the variable does not appear in the current stack frame, then set it
-     * to ⊥ (which means it is uninitialized).
-     */
-    def filterConstantVarDecls(vds: List[VarDecl]): List[VarDecl] =
-      vds.filter(vd => variables.head.getOrElse(vd.name.text, Bottom) == Top)
 
     /**
      * Performs a join (⊔) operation to find the least upper bounds between two
@@ -213,26 +201,27 @@ class ConstantPropagator(program: Program) {
      * This involves walking each stack frame in the environments and
      * performing a join on every variable in the stack frame.
      */
-    def join(other: Env): Unit = {
+    def join(other: Env): Env = {
       // v1 and v2 are VarMaps from the two environments and i is the current
       // index
-      for ((v1, i) <- variables.zipWithIndex; v2 <- other.variables) {
+      for (((v1, v2), i) <- (this.variables zip other.variables).zipWithIndex) {
         // Get the set of unique variable identifiers from the two VarMaps.
         // For each identifier retrieve its value from the two environments
-        // (if the value doesn't exist we set it to ⊥, which means that it is
-        // uninitialized).
+        // (if the value doesn't exist we set it to undefined).
         //
         // Perform the join operation on these two values, and create a
         // single variable identifier, value pair from this join operation.
         // We later transform these variable identifier, value pairs back
         // into a map.
         val varMap = (v1.keys ++ v2.keys).toSeq.distinct.map(
-          id => id -> (v1.getOrElse(id, Bottom) join v2.getOrElse(id, Bottom))
+          id => id -> (v1.getOrElse(id, undefined) join v2.getOrElse(id, undefined))
         )
         // Convert the sequence of pairs back to a mutable map and update it in
         // the variable stack
         variables.update(i, mutable.Map(varMap: _*))
       }
+      // Return this environment so we can chain joins
+      this
     }
   }
 
@@ -282,26 +271,49 @@ class ConstantPropagator(program: Program) {
         // Create the top level stack frame for all global variables and
         // functions
         env.enterScope(node)
+        // Walk the global variable declarations. This will create new abstract
+        // variables in the environment and set them to undefined (as per the
+        // ECMA-262 spec)
+        val newVds = vds.map(walk(_, env))
         // Walk the global function declarations and perform constant
         // propagation in each function
         val newFds = fds.map(super.walk(_, env))
-        // Walk the global variable declarations. This will create new variables
-        // in the environment and set them to ⊥
-        val newVds = vds.map(walk(_, env))
-        // Perform constant propagation
+        // Perform constant propagation on the top level code
         val newStmts = stmts.map(walk(_, env))
-        // Filter out any variable declarations that have remained constant (or
-        // ⊥) in this function - they are just dead code at this point
-        // XXX don't do this for now
-        val filteredVds = env.filterConstantVarDecls(newVds)
-        // Get the list of variable names that remained constant in this function
-        val constVarIds = newVds.filterNot(filteredVds.toSet).map(_.name)
-        // Rewalk statements and remove all assignments to variables
-        // that remained constant (these assignments are just dead code)
-        val filteredStmts = newStmts.map(new RemoveConstantAssignmentWalker(constVarIds).walk(_))
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        TopLevel(info, newFds, filteredVds, filteredStmts)
+        TopLevel(info, newFds, newVds, newStmts)
+
+      // Rewalk the node if a change has been made to the AST
+      case _ =>
+        val newNode = super.walk(node, env)
+        if (newNode != node) walk(newNode, env) else newNode
+    }
+
+    override def walk(node: Functional, env: Env): Functional = node match {
+      // Walking a function creates a new scope in the environment. Because the
+      // AST rewriter's hoisting phase stores all variable declarations in vds,
+      // we can just walk vds and save all of the variables into the
+      // environment. The hoisting phase also ensures that the variable
+      // declarations are uninitialized, so we set them all to the undefined
+      // literal (as per the ECMA-262 spec).
+      // 
+      // Following this, the function body is walked. Once the function body
+      // has been walked, we can exit that scope and return the new function.
+      case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
+        // Create a new environment stack frame for this function
+        env.enterScope(node)
+        // Walk the local variable declarations. This will create new abstract
+        // variables in the environment and set them to undefined
+        val newVds = vds.map(walk(_, env))
+        // Walk the local function declarations and perform constant
+        // propagation in each function
+        val newFds = fds.map(super.walk(_, env))
+        // Perform constant propagation on the function body
+        val newSeBody = seBody.map(walk(_, env))
+        // We're finished - destroy this stack frame
+        env.exitScope(node)
+        Functional(info, newFds, newVds, SourceElements(seInfo, newSeBody, strict), name, params, body)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -315,56 +327,18 @@ class ConstantPropagator(program: Program) {
       // The variable should not have an initializer expression associated with
       // it - the AST rewriter's hoisting phase should have removed all of
       // these. If an initializer expression is found, throw an error.
-      case VarDecl(info, name, expr, strict) => {
-        expr match {
-          case Some(_) => throw InitializedVariableError(name)
-          case None =>
-            env.createVariable(name)
-            VarDecl(info, name, expr.map(walk(_, env)), strict)
-        }
+      case VarDecl(_, name, expr, _) => expr match {
+        case Some(_) => throw InitializedVariableError(name)
+        case None =>
+          env.createVariable(name)
+          node
       }
     }
 
-    override def walk(node: Functional, env: Env): Functional = node match {
-      // Walking a function creates a new scope in the environment. Because the
-      // AST rewriter's hoisting phase stores all variable declarations in vds,
-      // we can just walk vds and save all of the variables into the
-      // environment. The hoisting phase also ensures that the variable
-      // declarations are uninitialized, so we set them all to ⊥.
-      // 
-      // Following this, the function body is walked. Once the function body
-      // has been walked, we can exit that scope and return the new function.
-      case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
-        // Create a new stack frame in the environment for the variables and
-        // functions in this function
-        env.enterScope(node)
-        // Walk the local function declarations and perform constant propagation
-        // in each function
-        val newFds = fds.map(super.walk(_, env))
-        // Walk the local variable declarations. This will create new variables
-        // in the environment and set them to ⊥
-        val newVds = vds.map(walk(_, env))
-        // Perform constant propagation on the function body
-        val newSeBody = seBody.map(walk(_, env))
-        // Filter out any variable declarations that have remained constant (or
-        // ⊥) in this function - they are just dead code at this point
-        val filteredVds = env.filterConstantVarDecls(newVds)
-        // Get the list of variable names that remained constant in this function
-        val constVarIds = newVds.filterNot(filteredVds.toSet).map(_.name)
-        // Rewalk the function body and remove all assignments to variables
-        // that remained constant (these assignments are just dead code)
-        val filteredSeBody = newSeBody.map(new RemoveConstantAssignmentWalker(constVarIds).walk(_))
-        // We're finished - destroy this stack frame
-        env.exitScope(node)
-        Functional(info, newFds, filteredVds, SourceElements(seInfo, filteredSeBody, strict), name, params, body)
-
-      // Rewalk the node if a change has been made to the AST
-      case _ =>
-        val newNode = super.walk(node, env)
-        if (newNode != node) walk(newNode, env) else newNode
-    }
-
     override def walk(node: Stmt, env: Env): Stmt = node match {
+      // TODO Switch statements and loops
+      // TODO fail on try/catch blocks - the semantics are too complex
+
       // A code block creates a new scope in the environment. Once the block's
       // statements have been walked, we can exit that scope adn return the new
       // statements.
@@ -412,8 +386,7 @@ class ConstantPropagator(program: Program) {
         // into this method, we perform a join twice on the original environment
         // and rely on the associativity of join (i.e.
         // (e1 ⊔ e2) ⊔ e3 === e1 ⊔ (e2 ⊔ e3))
-        env.join(trueBranchEnv)
-        env.join(falseBranchEnv)
+        env.join(trueBranchEnv).join(falseBranchEnv)
         If(info, newCond, newTrueBranch, Some(newFalseBranch))
 
       // Rewalk the node if a change has been made to the AST
@@ -435,40 +408,25 @@ class ConstantPropagator(program: Program) {
         case _ => assign
       }
 
+      // Rewalk the node if a change has been made to the AST
+      case _ =>
+        val newNode = super.walk(node, env)
+        if (newNode != node) walk(newNode, env) else newNode
+    }
+
+    override def walk(node: LHS, env: Env): LHS = node match {
       // When a variable is used in an expression, check if it is a constant
       // expression in the abstract environment. If it is, just replace the
       // variable usage with its constant value. Otherwise leave unchanged.
-      case vr @ VarRef(_, id) => env.getVariable(id) match {
+      case VarRef(_, id) => env.getVariable(id) match {
         case Some(Constant(c)) => c
-        case _ => vr
+        case _ => node
       }
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
         val newNode = super.walk(node, env)
         if (newNode != node) walk(newNode, env) else newNode
-    }
-  }
-
-  /**
-   * Performs some form of dead code elimination - removing assignments to
-   * variables that are deemed constant and have thus been propagated out of
-   * existance.
-   *
-   * @param varIds Variable identifiers that have been marked as constant
-   */
-  private class RemoveConstantAssignmentWalker(varIds: List[Id]) extends ASTWalker {
-    // If we are assignment a value to a variable that was deemed constant in
-    // its scope, then we can safely remove all assignments to this variable.
-    // Here "removal" means replace with an empty expression.
-    override def walk(node: Expr): Expr = node match {
-      case aoa @ AssignOpApp(info, vr @ VarRef(_, id), _, _) =>
-        if (varIds.contains(id)) EmptyExpr(info) else aoa
-
-      // Rewalk the node if a change has been made to the AST
-      case _ =>
-        val newNode = super.walk(node)
-        if (newNode != node) walk(newNode) else newNode
     }
   }
 
