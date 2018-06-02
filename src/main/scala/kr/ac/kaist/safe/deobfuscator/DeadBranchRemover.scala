@@ -160,7 +160,7 @@ class DeadBranchRemover(program: Program) {
         // dropWhile will drop case statements until we find one that matches
         // the given condition
         def dropUntilCondFound(cs: List[Case]): List[Case] =
-          cs.dropWhile(c => !(c.cond =~ cond))
+          cs.dropWhile(_.cond !=~ cond)
 
         // Check if the given list of statements ends with a break statement.
         def endsWithBreak(stmts: List[Stmt]): Boolean = stmts.lastOption match {

@@ -79,7 +79,7 @@ class UnusedVariableRemover(program: Program) {
      * Remove a variable from the environment.
      */
     def removeVar(id: Id): Unit = ids.find(_.exists(_ =~ id)) match {
-      case Some(s) => s.retain(i => !(i =~ id))
+      case Some(s) => s.retain(_ !=~ id)
       case None => ()
     }
 
