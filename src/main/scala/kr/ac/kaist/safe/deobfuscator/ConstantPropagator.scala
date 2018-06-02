@@ -187,7 +187,7 @@ class ConstantPropagator(program: Program) {
      * Retrieves a variable from the environment.
      *
      * Each scope is searched from "newest" to "oldest", where the oldest scope
-     * is the global scope. If the variable isn't found `None` is returned.
+     * is the global scope. `None` is returned if the variable isn't found.
      */
     def getVariable(name: Id): Option[AbstractValue] = {
       val nameText = name.text
@@ -301,7 +301,7 @@ class ConstantPropagator(program: Program) {
       // Following this, the function body is walked. Once the function body
       // has been walked, we can exit that scope and return the new function.
       case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
-        // Create a new environment stack frame for this function
+        // Create a new stack frame for this function
         env.enterScope(node)
         // Walk the local variable declarations. This will create new abstract
         // variables in the environment and set them to undefined
