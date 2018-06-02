@@ -749,6 +749,8 @@ object NodeUtil {
     }
 
     override def walk(node: Stmt): Stmt = node match {
+      case StmtUnit(info, ss) =>
+        StmtUnit(info, simplify(ss.map(walk)))
       case ABlock(info, List(ABlock(_, ss, _)), b) =>
         walk(ABlock(info, ss, b))
       case ABlock(info, List(stmt), b) =>
@@ -759,6 +761,10 @@ object NodeUtil {
         walk(ABlock(info, ss ++ stmts, b))
       case ABlock(info, stmts, b) =>
         ABlock(info, simplify(stmts.map(walk)), b)
+      case If(info, _, EmptyStmt(_) | ABlock(_, Nil, _), None) =>
+        EmptyStmt(info)
+      case If(info, cond, trueBranch, Some(EmptyStmt(_) | ABlock(_, Nil, _))) =>
+        If(info, cond, trueBranch, None)
       case Switch(info, cond, frontCases, Some(stmts), backCases) =>
         Switch(info, cond, frontCases.map(walk),
           Some(simplify(stmts.map(walk))), backCases.map(walk))

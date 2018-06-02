@@ -66,9 +66,7 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     if (newExcLog.hasError || newProgram =~ program) {
       (newProgram, newExcLog)
     } else {
-      // XXX not yet working
-      //deobfuscate(newProgram, newExcLog)
-      (newProgram, newExcLog)
+      deobfuscate(newProgram, newExcLog)
     }
   }
 

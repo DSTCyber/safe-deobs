@@ -19,8 +19,6 @@ import scala.collection.mutable
 
 /**
  * Deletes unused variables.
- *
- * Note that variables must be declared (i.e. using `var`) to be deleted.
  */
 class UnusedVariableRemover(program: Program) {
   ////////////////////////////////////////////////////////////////
@@ -35,6 +33,12 @@ class UnusedVariableRemover(program: Program) {
   // private global
   ////////////////////////////////////////////////////////////////
 
+  /**
+   * A stack of identifiers.
+   *
+   * Each stack frame corresponds to a particular scope in the JavaScript
+   * program.
+   */
   private type IdStack = mutable.ArrayStack[mutable.Set[Id]]
 
   /**
@@ -84,11 +88,10 @@ class UnusedVariableRemover(program: Program) {
     }
 
     /**
-     * Returns `true` if the given variable has been declared in the current
-     * scope.
+     * Returns `true` if the given variable has been declared.
      */
     def varDeclared(id: Id): Boolean =
-      ids.head.exists(_ =~ id)
+      ids.find(_.exists(_ =~ id)).isDefined
 
     /**
      * Gets the set of variables to delete in the current scope.
@@ -128,8 +131,8 @@ class UnusedVariableRemover(program: Program) {
     }
 
     override def walk(node: Functional, env: Env): Functional = node match {
-      case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
-        // Create a new environment stack frame for this function
+      case Functional(info, fds, vds, stmts, name, params, body) =>
+        // Create a new stack frame for this function
         env.enterScope(node)
         // Walk the local variable declarations. This will add new variables to
         // the environment. By default we assume that these variables will be
@@ -140,16 +143,17 @@ class UnusedVariableRemover(program: Program) {
         // function
         val newFds = fds.map(walk(_, env))
         // Determine which variables can be removed from this function
-        val newSeBody = seBody.map(walk(_, env))
+        val newStmts = walk(stmts, env)
         // Remove unused variable declarations from this function
         val varsToRemove = env.varsToRemove
         val filteredVds = newVds.filterNot(vd => varsToRemove.contains(vd.name))
         // Rewalk the function's AST and remove any assignments to removed
         // variables
-        val filteredSeBody = newSeBody.map(new RemoveAssignmentsWalker(varsToRemove).walk(_))
+        val removeAssignmentsWalker = new RemoveAssignmentsWalker(varsToRemove)
+        val filteredStmts = removeAssignmentsWalker.walk(newStmts)
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        Functional(info, newFds, filteredVds, SourceElements(seInfo, filteredSeBody, strict), name, params, body)
+        Functional(info, newFds, filteredVds, filteredStmts, name, params, body)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -171,11 +175,11 @@ class UnusedVariableRemover(program: Program) {
       // We can still assign to variables and never use them, making them
       // removable.
       case AssignOpApp(info, vr @ VarRef(_, id), op, right) =>
-        // It is it necessary to declare a variable (with val) before using it.
-        // Therefore we check that all assigned variables have been declared.
-        // If a variable has not been declared, add it to the environment in
-        // the current scope (if that variable is later referenced it will be
-        // removed from the environment and not deleted).
+        // It is not necessary to declare a variable (with val) before using
+        // it. Therefore we check that all assigned variables have been
+        // declared. If a variable has not been declared, add it to the
+        // environment in the current scope (if that variable is later
+        // referenced it will be removed from the environment and not deleted).
         if (!env.varDeclared(id)) env.addVar(id)
         AssignOpApp(info, vr, op, walk(right, env))
 
@@ -216,4 +220,10 @@ class UnusedVariableRemover(program: Program) {
       }
     }
   }
+
+  ////////////////////////////////////////////////////////////////
+  // calculate results
+  ////////////////////////////////////////////////////////////////
+
+  (result, excLog)
 }
