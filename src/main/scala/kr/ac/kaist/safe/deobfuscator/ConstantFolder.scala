@@ -468,8 +468,11 @@ class ConstantFolder(program: Program) {
 
       // Simplifies the concatenation of two string literals into a single
       // string literal
-      case InfixOpApp(info, StringLiteral(_, quote, left, false), Op(_, "+"), StringLiteral(_, _, right, false)) =>
-        StringLiteral(info, quote, left + right, false)
+      case InfixOpApp(info, StringLiteral(_, _, left, false), Op(_, "+"), StringLiteral(_, _, right, false)) =>
+        // Force the new string to use single quotes, and escape all single
+        // quotes that appear in the concatenated string
+        val newStr = """'""".r.replaceAllIn(s"$left$right", """\\'""")
+        StringLiteral(info, "'", newStr, false)
 
       // Simplifies the concatenation of a string literal with an integer
       // literal into a single string literal
