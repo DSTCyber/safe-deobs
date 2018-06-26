@@ -50,6 +50,11 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     newProgram = functionInliner.result
     newExcLog += functionInliner.excLog
 
+    // Simplify known functions
+    val knownFunctionSimplifier = new KnownFunctionSimplifier(newProgram)
+    newProgram = knownFunctionSimplifier.result
+    newExcLog += knownFunctionSimplifier.excLog
+
     // Remove dead branches
     val deadBranchRemover = new DeadBranchRemover(newProgram)
     newProgram = deadBranchRemover.result
