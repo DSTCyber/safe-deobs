@@ -27,7 +27,7 @@ class FunctionInliner(program: Program) {
   // results
   ////////////////////////////////////////////////////////////////
 
-  lazy val result: Program = FunctionInlineWalker.walk(program, Map[Id, Option[Expr]]())
+  lazy val result: Program = FunctionInlineWalker.walk(program, Map[Id, Expr]())
 
   lazy val excLog: ExcLog = new ExcLog
 
@@ -35,9 +35,39 @@ class FunctionInliner(program: Program) {
   // private global
   ////////////////////////////////////////////////////////////////
 
-  private type Env = Map[Id, Option[Expr]]
+  private type Env = Map[Id, Expr]
 
   private object FunctionInlineWalker extends ASTEnvWalker[Env] {
+    /**
+     * If the given function is inlinable, return the expression that all
+     * calls to this function will be replaced with. Otherwise return
+     * `None`.
+     *
+     * A function is inlinable if it only contains a single `return` statement,
+     * which we can trivially inline.
+     */
+    private def getInlinableExpr(func: Functional): Option[Expr] = {
+      val body = func.stmts.body
+      // We can only inline functions with a single return statement
+      if (body.length == 1) {
+        body.last match {
+          // If the function returns a literal expression, we can inline it
+          // with that literal expression
+          case Return(_, lit @ Some(_: Literal)) => lit
+          // If the function consists of an empty return statement, we can
+          // just delete it
+          case Return(_, None) => Some(EmptyExpr(func.info))
+          // The function is too complex to inline if it returns something
+          // more than a literal expression
+          case _ => None
+        }
+      } else {
+        // The function has too many statements and therefore cannot be
+        // inlined
+        None
+      }
+    }
+
     /**
      * Generate a map of inlinable functions.
      *
@@ -52,25 +82,10 @@ class FunctionInliner(program: Program) {
      *         inline
      */
     private def getInlinableFunctions(funcs: List[Functional]): Env =
-      funcs.foldLeft(Map[Id, Option[Expr]]())((m, func) => {
-        val body = func.stmts.body
-        // We can only inline functions with a single return statement
-        if (body.length == 1) {
-          body.last match {
-            // If the function returns a literal expression, we can inline it
-            // with that literal expression
-            case Return(_, lit @ Some(_: Literal)) => m + (func.name -> lit)
-            // If the function consists of an empty return statement, we can
-            // just delete it
-            case Return(_, None) => m + (func.name -> None)
-            // The function is too complex to inline if it returns something
-            // more than a literal expression
-            case _ => m
-          }
-        } else {
-          // The function has too many statements and therefore cannot be
-          // inlined
-          m
+      funcs.foldLeft(Map[Id, Expr]())((m, func) => {
+        getInlinableExpr(func) match {
+          case Some(expr) => m + (func.name -> expr)
+          case None => m
         }
       })
 
@@ -96,22 +111,32 @@ class FunctionInliner(program: Program) {
     }
 
     override def walk(node: Expr, env: Env): Expr = node match {
-      // A function call. Check if it is inlinable, and inline it as
+      // A standard function call. Check if it is inlinable, and inline it as
       // appropriate.
       case FunApp(info, vr @ VarRef(_, id), args) =>
         env.find { case (name, _) => name =~ id } match {
           // An inlinable function that we can replace with the given
-          // expression (taken from the function's return statement).
-          case Some((_, Some(expr))) => expr
-          // An inlinable, empty function. Just replace the function call with
-          // an empty expression
-          case Some((_, None)) => EmptyExpr(info)
+          // expression (taken from the function's return statement, or an
+          // empty expression if the function returned nothing).
+          case Some((_, expr)) => expr
           // If the function is not inlinable, walk the function argument
           // expressions (because they might be inlinable function calls) and
           // return the function call expression (with the new arguments).
           case None =>
             val newArgs = args.map(walk(_, env))
             FunApp(info, vr, newArgs)
+        }
+
+      // Anonymous function used as a closure. Walk the anonymous function,
+      // and if a new anonymous function is returned, check if it is
+      // inlinable. If it is, inline it.
+      case FunApp(info, Parenthesized(parenInfo, expr: FunExpr), Nil) =>
+        super.walk(expr, env) match {
+          case FunExpr(_, ftn) => getInlinableExpr(ftn) match {
+            case Some(expr) => expr
+            case None => node
+          }
+          case newExpr => FunApp(info, Parenthesized(parenInfo, newExpr), Nil)
         }
 
       // Rewalk the node if a change has been made to the AST
