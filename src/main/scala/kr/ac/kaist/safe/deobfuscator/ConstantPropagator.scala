@@ -266,6 +266,12 @@ class ConstantPropagator(program: Program) {
       case _ => assign
     }
 
+    /**
+     * Copy the given environment `n` times.
+     */
+    private def copyEnvs(n: Int)(env: Env): List[Env] =
+      List.fill(n)(env.copy)
+
     override def walk(node: TopLevel, env: Env): TopLevel = node match {
       case TopLevel(info, fds, vds, stmts) =>
         // Create the top level stack frame for all global variables and
@@ -336,7 +342,7 @@ class ConstantPropagator(program: Program) {
     }
 
     override def walk(node: Stmt, env: Env): Stmt = node match {
-      // TODO Switch statements and loops
+      // TODO loops
       // TODO fail on try/catch blocks - the semantics are too complex
 
       // A code block creates a new scope in the environment. Once the block's
@@ -388,6 +394,40 @@ class ConstantPropagator(program: Program) {
         // (e1 ⊔ e2) ⊔ e3 === e1 ⊔ (e2 ⊔ e3))
         env.join(trueBranchEnv).join(falseBranchEnv)
         If(info, newCond, newTrueBranch, Some(newFalseBranch))
+
+      case Switch(info, cond, frontCases, deopt, backCases) =>
+        // Propagate constants into the conditional expression. Note that we do
+        // not perform any dead code elimination if the conditional expression
+        // becomes constant.
+        val newCond = walk(cond, env)
+        // Create enough environments to walk all of the front cases.
+        val frontCasesEnvs = copyEnvs(frontCases.length)(env)
+        // Create an environment to walk the default case.
+        val deoptEnv = env.copy
+        // Create an environment to walk all of the back cases.
+        val backCasesEnvs = copyEnvs(backCases.length)(env)
+        // Walk all of the front cases, each with their own copy of the
+        // environment.
+        val newFrontCases = frontCases.zip(frontCasesEnvs).map {
+          case (frontCase, frontCaseEnv) => walk(frontCase, frontCaseEnv)
+        }
+        // Walk the default branch (an optional list of statements) with the
+        // copied environment.
+        val newDeopt = deopt.map(_.map(walk(_, deoptEnv)))
+        // Walk all of the back cases, each with their own copy of the
+        // environment.
+        val newBackCases = backCases.zip(backCasesEnvs).map {
+          case (backCase, backCaseEnv) => walk(backCase, backCaseEnv)
+        }
+        // Perform a join on all of the front cases. Because the initial
+        // environment is used as the starting value, this will be the
+        // environment that gets updated.
+        frontCasesEnvs.fold(env)(_.join(_))
+        // Join with the default case's environment.
+        env.join(deoptEnv)
+        // Finally perform a join on all of the back cases' environments.
+        backCasesEnvs.fold(env)(_.join(_))
+        Switch(info, newCond, newFrontCases, newDeopt, newBackCases)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
