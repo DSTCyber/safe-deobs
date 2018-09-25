@@ -19,7 +19,7 @@ import kr.ac.kaist.safe.nodes.ast._
 /**
  * Performs function inlining on an AST.
  *
- * Only trivially simple functions (i.e. those with a single `return`
+ * Only trivially simple functions (e.g. those with a single `return`
  * statement) are inlined.
  */
 class FunctionInliner(program: Program) {
@@ -27,7 +27,7 @@ class FunctionInliner(program: Program) {
   // results
   ////////////////////////////////////////////////////////////////
 
-  lazy val result: Program = FunctionInlineWalker.walk(program, Map[Id, Expr]())
+  lazy val result: Program = FunctionInlineWalker.walk(program, Map[Id, InlinableExpr]())
 
   lazy val excLog: ExcLog = new ExcLog
 
@@ -35,7 +35,34 @@ class FunctionInliner(program: Program) {
   // private global
   ////////////////////////////////////////////////////////////////
 
-  private type Env = Map[Id, Expr]
+  /**
+   * An abstract class that wraps an expression that can replace inlinable
+   * function calls.
+   */
+  private sealed abstract class InlinableExpr;
+
+  /**
+   * Represents an inlinable function that only returns a constant value.
+   *
+   * @param expr The inlinable function's return value. This can either
+   *             be a constant (i.e. `literal`) value or an empty
+   *             expression.
+   */
+  private case class InlinableReturn(returnedExpr: Expr) extends InlinableExpr
+
+  /**
+   * Represents an inlinable function that only returns one of its
+   * arguments.
+   *
+   * @param returnedArgIdx The index of the returned argument.
+   */
+  private case class InlinableArg(returnedArgIdx: Int) extends InlinableExpr
+
+  /**
+   * The environment maps the names of inlinable functions to the expression
+   * that will replace the function call.
+   */
+  private type Env = Map[Id, InlinableExpr]
 
   private object FunctionInlineWalker extends ASTEnvWalker[Env] {
     /**
@@ -43,23 +70,38 @@ class FunctionInliner(program: Program) {
      * calls to this function will be replaced with. Otherwise return
      * `None`.
      *
-     * A function is inlinable if it only contains a single `return` statement,
-     * which we can trivially inline.
+     * A function is inlinable if it only contains a single `return` statement.
      */
-    private def getInlinableExpr(func: Functional): Option[Expr] = {
+    private def getInlinableExpr(func: Functional): Option[InlinableExpr] = {
       val body = func.stmts.body
-      // We can only inline functions with a single return statement
+      val params = func.params
+      // We only inline functions with a single return statement
       if (body.length == 1) {
         body.last match {
           // If the function returns a literal expression, we can inline it
           // with that literal expression
-          case Return(_, lit @ Some(_: Literal)) => lit
+          case Return(_, Some(lit: Literal)) =>
+            Some(InlinableReturn(lit))
           // If the function consists of an empty return statement, we can
           // just delete it
-          case Return(_, None) => Some(EmptyExpr(func.info))
+          case Return(_, None) =>
+            Some(InlinableReturn(EmptyExpr(func.info)))
+          // If the function is returning a function argument directly, we can
+          // inline it with the expression passed to that function argument
+          case Return(_, Some(VarRef(_, id))) if params.exists(_ =~ id) =>
+            // Find the function argument that matches the one being returned
+            params.zipWithIndex.find {
+              case (param, _) => param =~ id
+              // At this point we have a pair of argument identifiers and its
+              // index. We are only interested in the argument's index so that
+              // we can replace that argument when the function is called
+            }.map {
+              case (_, idx) => InlinableArg(idx)
+            }
           // The function is too complex to inline if it returns something
           // more than a literal expression
-          case _ => None
+          case _ =>
+            None
         }
       } else {
         // The function has too many statements and therefore cannot be
@@ -71,8 +113,7 @@ class FunctionInliner(program: Program) {
     /**
      * Generate a map of inlinable functions.
      *
-     * A function is inlinable if it only contains a single `return` statement,
-     * which we can trivially inline.
+     * A function is inlinable only if it contains a single `return` statement.
      *
      * The map associates the name of an inlinable function with the value
      * that calls to this function will be replaced with.
@@ -82,7 +123,7 @@ class FunctionInliner(program: Program) {
      *         inline
      */
     private def getInlinableFunctions(funcs: List[Functional]): Env =
-      funcs.foldLeft(Map[Id, Expr]())((m, func) => {
+      funcs.foldLeft(Map[Id, InlinableExpr]())((m, func) => {
         getInlinableExpr(func) match {
           case Some(expr) => m + (func.name -> expr)
           case None => m
@@ -115,10 +156,13 @@ class FunctionInliner(program: Program) {
       // appropriate.
       case FunApp(info, vr @ VarRef(_, id), args) =>
         env.find { case (name, _) => name =~ id } match {
-          // An inlinable function that we can replace with the given
-          // expression (taken from the function's return statement, or an
-          // empty expression if the function returned nothing).
-          case Some((_, expr)) => expr
+          // An inlinable function that we can replace with its return value
+          // (or an empty expression if the function returns nothing)
+          case Some((_, InlinableReturn(expr))) => expr
+          // An inlinable function that can be replaced directly with its
+          // function argument (because the function just returns the
+          // argument directly)
+          case Some((_, InlinableArg(idx))) => args(idx)
           // If the function is not inlinable, walk the function argument
           // expressions (because they might be inlinable function calls) and
           // return the function call expression (with the new arguments).
@@ -133,8 +177,8 @@ class FunctionInliner(program: Program) {
       case FunApp(info, Parenthesized(parenInfo, expr: FunExpr), Nil) =>
         super.walk(expr, env) match {
           case FunExpr(_, ftn) => getInlinableExpr(ftn) match {
-            case Some(expr) => expr
-            case None => node
+            case Some(InlinableReturn(expr)) => expr
+            case _ => node
           }
           case newExpr => FunApp(info, Parenthesized(parenInfo, newExpr), Nil)
         }

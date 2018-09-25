@@ -94,7 +94,7 @@ class DeadBranchRemover(program: Program) {
      *
      * Return a flattened list of statements. If the list of statements
      * contains a `break` statement, only include up to (and including) the
-     * `break` (everthign after is redundant).
+     * `break` (everything after is redundant).
      */
     private def flattenCases(cases: List[Case]): List[Stmt] = {
       // The case statement that we are interested in might not end with a
