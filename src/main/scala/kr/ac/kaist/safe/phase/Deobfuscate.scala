@@ -34,43 +34,51 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     val stringDecoder = new StringDecoder(newProgram)
     newProgram = stringDecoder.result
     newExcLog += stringDecoder.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Fold constants
     val constantFolder = new ConstantFolder(newProgram)
     newProgram = constantFolder.result
     newExcLog += constantFolder.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Propagate constants
     val constantPropagator = new ConstantPropagator(newProgram)
     newProgram = constantPropagator.result
     newExcLog += constantPropagator.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Inline functions
     val functionInliner = new FunctionInliner(newProgram)
     newProgram = functionInliner.result
     newExcLog += functionInliner.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Simplify known functions
     val knownFunctionSimplifier = new KnownFunctionSimplifier(newProgram)
     newProgram = knownFunctionSimplifier.result
     newExcLog += knownFunctionSimplifier.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Remove dead branches
     val deadBranchRemover = new DeadBranchRemover(newProgram)
     newProgram = deadBranchRemover.result
     newExcLog += deadBranchRemover.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Remove unused variables
     // TODO this only has to be done once, after the AST reaches a steady-state
     val unusedVariableRemover = new UnusedVariableRemover(newProgram)
     newProgram = unusedVariableRemover.result
     newExcLog += unusedVariableRemover.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Rename variables
     // TODO this only has to be done once, after the AST reaches a steady-state
     val variableRenamer = new VariableRenamer(newProgram)
     newProgram = variableRenamer.result
     newExcLog += variableRenamer.excLog
+    if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Simplify
     newProgram = NU.SimplifyWalker.walk(newProgram)

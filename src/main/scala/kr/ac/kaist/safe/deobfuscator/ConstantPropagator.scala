@@ -342,8 +342,14 @@ class ConstantPropagator(program: Program) {
     }
 
     override def walk(node: Stmt, env: Env): Stmt = node match {
-      // TODO loops
-      // TODO fail on try/catch blocks - the semantics are too complex
+      // TODO support loops and try/catch blocks
+      case _: DoWhile => throw UnsupportedStatementError(node)
+      case _: While => throw UnsupportedStatementError(node)
+      case _: For => throw UnsupportedStatementError(node)
+      case _: ForIn => throw UnsupportedStatementError(node)
+      case _: ForVar => throw UnsupportedStatementError(node)
+      case _: ForVarIn => throw UnsupportedStatementError(node)
+      case _: Try => throw UnsupportedStatementError(node)
 
       // A code block creates a new scope in the environment. Once the block's
       // statements have been walked, we can exit that scope adn return the new
