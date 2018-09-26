@@ -204,6 +204,7 @@ class ConstantFolder(program: Program) {
       case Op(_, "!==") => Some((x, y) => x.compareTo(y) != 0)
       case _ => None
     }
+
     /**
      * Converts a JavaScript string equality operation to a `String` method.
      */
@@ -250,6 +251,7 @@ class ConstantFolder(program: Program) {
       case Op(_, "!==") => Some((x, y) => x.compareTo(y) != 0)
       case _ => None
     }
+
     /**
      * Implicitly converts a `Boolean` to a `Long` - just like JavaScript!
      */
@@ -567,11 +569,11 @@ class ConstantFolder(program: Program) {
       case PrefixOpApp(info, Op(_, "-"), Bool(_, bool)) =>
         IntLiteral(info, BigInteger.valueOf(bool).negate(), 10)
 
-      // Applies the unary - operator to an integer literal, negating it.
+      // Applies the unary - operator to an integer literal, negating it
       case PrefixOpApp(info, Op(_, "-"), IntLiteral(_, intVal, radix)) =>
         IntLiteral(info, intVal.negate(), radix)
 
-      // Applies the unary - operator to a double literal, negating it.
+      // Applies the unary - operator to a double literal, negating it
       case PrefixOpApp(info, Op(_, "-"), DoubleLiteral(_, text, double)) =>
         DoubleLiteral(info, text, -double)
 
@@ -594,6 +596,16 @@ class ConstantFolder(program: Program) {
 
       case PrefixOpApp(info, Op(_, "typeof"), _: StringLiteral) =>
         StringLiteral(info, "\"", "string", false)
+
+      // Simplify a lookup on an array literal. If the index is not in range,
+      // `Undefined` is returned
+      case Bracket(info, ArrayExpr(_, elements), IntLiteral(_, intVal, _)) =>
+        val idx = intVal.intValue
+        if (idx >= 0 && idx < elements.length) {
+          elements(idx) getOrElse node
+        } else {
+          Undefined(info)
+        }
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
