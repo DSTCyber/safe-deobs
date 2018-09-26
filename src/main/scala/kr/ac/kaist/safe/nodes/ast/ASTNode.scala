@@ -33,12 +33,12 @@ trait ASTNode extends Node {
   def offset: Int = begin.offset
 
   /**
-   * Compare two AST nodes for equality, *ignoring* their `ASTNodeInfo`.
+   * Compare two AST nodes for equivalence, *ignoring* their `ASTNodeInfo`.
    */
   def =~(that: ASTNode): Boolean
 
   /**
-   * Compare two AST nodes for inequality, *ignoring* their `ASTNodeInfo`.
+   * Compare two AST nodes for inequivalence, *ignoring* their `ASTNodeInfo`.
    */
   def !=~(that: ASTNode): Boolean =
     !(this =~ that)
