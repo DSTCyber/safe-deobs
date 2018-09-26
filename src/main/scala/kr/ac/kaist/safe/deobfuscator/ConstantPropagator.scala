@@ -12,12 +12,13 @@
 
 package kr.ac.kaist.safe.deobfuscator
 
+import scala.collection.mutable.{ ArrayStack, Map => MutableMap }
+import scala.util.{ Try => STry }
+
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.errors.error._
 import kr.ac.kaist.safe.nodes.ast._
 import kr.ac.kaist.safe.util.Span
-
-import scala.collection.mutable
 
 /**
  * Performs constant propagation on an AST.
@@ -52,8 +53,14 @@ class ConstantPropagator(program: Program) {
     def join(other: AbstractValue): AbstractValue = this match {
       case Top => Top
       case Constant(c1) => other match {
-        case Top => Top
-        case Constant(c2) => if (c1 =~ c2) Constant(c1) else Top
+        case Constant(c2) =>
+          if (c1 =~ c2) Constant(c1) else Top
+        case _ => Top
+      }
+      case ConstantArray(c1) => other match {
+        case ConstantArray(c2) =>
+          if (equivalentLiterals(c1, c2)) ConstantArray(c1) else Top
+        case _ => Top
       }
     }
   }
@@ -64,9 +71,30 @@ class ConstantPropagator(program: Program) {
   private case object Top extends AbstractValue
 
   /**
-   * An abstract representation of a constant JavaScript expression.
+   * An abstract representation of a constant (i.e. literal) JavaScript
+   * expression.
    */
   private case class Constant(expr: Literal) extends AbstractValue
+
+  /**
+   * An abstract representation of an array containing constant (i.e. literal)
+   * values.
+   */
+  private case class ConstantArray(exprs: List[Literal]) extends AbstractValue
+
+  /**
+   * Helper function to determine whether two lists of literals are equivalent
+   * (used during a ⊔).
+   *
+   * Two lists of literals are equivalent if (a) they have the same length and
+   * (b) each element is equivalent between both arrays.
+   */
+  private def equivalentLiterals(l1: List[Literal], l2: List[Literal]): Boolean =
+    if (l1.length == l2.length) {
+      l1.zip(l2).forall { case (e1, e2) => e1 =~ e2 }
+    } else {
+      false
+    }
 
   /**
    * Convenience `undefined` abstract variable.
@@ -78,18 +106,26 @@ class ConstantPropagator(program: Program) {
    * Takes a JavaScript expression and transforms it into an abstract value in
    * our constant propagation domain.
    *
-   * Literal expressions become constants, and everything else goes to ⊤.
+   * Literal expressions become constants, array expressions become constant
+   * arrays and everything else goes to ⊤.
    */
   private def makeAbstract(expr: Expr): AbstractValue = expr match {
     case l: Literal => Constant(l)
-    case _ => Top
+    // Attempt to map each element of the array expression to a literal
+    // expression. If we can't, throw an exception, catch it and go to ⊤.
+    case ae: ArrayExpr => STry(ConstantArray(ae.elements.map {
+      case Some(l: Literal) => l
+      case _ => throw new Exception
+    })) getOrElse Top
+    case _ =>
+      Top
   }
 
   /**
    * Mapping between the program's variables and their abstract values in the
    * set `Literal` ∪ ⊤`.
    */
-  private type VarMap = mutable.Map[String, AbstractValue]
+  private type VarMap = MutableMap[String, AbstractValue]
 
   /**
    * A stack of variable mappings.
@@ -97,7 +133,7 @@ class ConstantPropagator(program: Program) {
    * Each stack frame corresponds to a particular scope in the JavaScript
    * program.
    */
-  private type VarStack = mutable.ArrayStack[VarMap]
+  private type VarStack = ArrayStack[VarMap]
 
   /**
    * The constant propagation environment.
@@ -111,12 +147,12 @@ class ConstantPropagator(program: Program) {
    * corresponds to the top level (global) scope and is created by the
    * `TopLevel` AST element.
    */
-  private class Env(val variables: VarStack = mutable.ArrayStack()) {
+  private class Env(val variables: VarStack = ArrayStack()) {
     /**
      * Perform a deep copy of the current environment.
      */
     def copy(): Env = {
-      val newVariables: VarStack = mutable.ArrayStack()
+      val newVariables: VarStack = ArrayStack()
       variables.foreach(varMap => newVariables.push(varMap.clone))
       new Env(newVariables.reverse)
     }
@@ -127,7 +163,7 @@ class ConstantPropagator(program: Program) {
      * This pushes an empty variable mapping into the environment.
      */
     def enterScope(ast: ASTNode): Unit =
-      variables.push(mutable.Map())
+      variables.push(MutableMap())
 
     /**
      * Exit a scope.
@@ -218,7 +254,7 @@ class ConstantPropagator(program: Program) {
         )
         // Convert the sequence of pairs back to a mutable map and update it in
         // the variable stack
-        variables.update(i, mutable.Map(varMap: _*))
+        variables.update(i, MutableMap(varMap: _*))
       }
       // Return this environment so we can chain joins
       this
@@ -451,7 +487,8 @@ class ConstantPropagator(program: Program) {
           val newRight = walk(right, env)
           env.updateVariable(id, newRight)
           AssignOpApp(info, vr, op, newRight)
-        case _ => assign
+        case AssignOpApp(info, lhs, op, rhs) =>
+          AssignOpApp(info, walk(lhs, env), op, walk(rhs, env))
       }
 
       // Rewalk the node if a change has been made to the AST
@@ -464,10 +501,21 @@ class ConstantPropagator(program: Program) {
       // When a variable is used in an expression, check if it is a constant
       // expression in the abstract environment. If it is, just replace the
       // variable usage with its constant value. Otherwise leave unchanged.
+      //
+      // Note that we shouldn't see array accesses here (because they *should*
+      // be captured by `Bracket` nodes)
       case VarRef(_, id) => env.getVariable(id) match {
         case Some(Constant(c)) => c
         case _ => node
       }
+
+      case Bracket(_, VarRef(_, id), IntLiteral(_, intVal, _)) =>
+        val idx = intVal.intValue
+        env.getVariable(id) match {
+          case Some(ConstantArray(cs)) if idx >= 0 && idx < cs.length =>
+            cs(idx)
+          case _ => node
+        }
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
