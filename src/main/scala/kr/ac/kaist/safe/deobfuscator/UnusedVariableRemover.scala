@@ -12,10 +12,10 @@
 
 package kr.ac.kaist.safe.deobfuscator
 
+import scala.collection.mutable.{ ArrayStack, Set => MutableSet }
+
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.nodes.ast._
-
-import scala.collection.mutable
 
 /**
  * Deletes unused variables.
@@ -39,7 +39,7 @@ class UnusedVariableRemover(program: Program) {
    * Each stack frame corresponds to a particular scope in the JavaScript
    * program.
    */
-  private type IdStack = mutable.ArrayStack[mutable.Set[Id]]
+  private type IdStack = ArrayStack[MutableSet[Id]]
 
   /**
    * Environment for recording for recording which variables are removable.
@@ -55,14 +55,14 @@ class UnusedVariableRemover(program: Program) {
    * to the top level (global) scope and is created by the `TopLevel` AST
    * element.
    */
-  private class Env(val ids: IdStack = mutable.ArrayStack()) {
+  private class Env(val ids: IdStack = ArrayStack()) {
     /**
      * Enter a new scope.
      *
      * This pushes an empty variable mapping into the environment.
      */
     def enterScope(ast: ASTNode): Unit =
-      ids.push(mutable.Set())
+      ids.push(MutableSet())
 
     /**
      * Exit a scope.

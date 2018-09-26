@@ -67,21 +67,19 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     if (newExcLog.hasError) return (newProgram, newExcLog)
 
     // Remove unused variables
-    // TODO this only has to be done once, after the AST reaches a steady-state
     val unusedVariableRemover = new UnusedVariableRemover(newProgram)
     newProgram = unusedVariableRemover.result
     newExcLog += unusedVariableRemover.excLog
     if (newExcLog.hasError) return (newProgram, newExcLog)
 
+    // Simplify
+    newProgram = NU.SimplifyWalker.walk(newProgram)
+
     // Rename variables
-    // TODO this only has to be done once, after the AST reaches a steady-state
     val variableRenamer = new VariableRenamer(newProgram)
     newProgram = variableRenamer.result
     newExcLog += variableRenamer.excLog
     if (newExcLog.hasError) return (newProgram, newExcLog)
-
-    // Simplify
-    newProgram = NU.SimplifyWalker.walk(newProgram)
 
     if (newExcLog.hasError || newProgram =~ program) {
       (newProgram, newExcLog)

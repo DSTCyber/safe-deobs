@@ -12,11 +12,11 @@
 
 package kr.ac.kaist.safe.deobfuscator
 
+import scala.collection.mutable.{ ArrayStack, Map => MutableMap }
+
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.nodes.ast._
 import kr.ac.kaist.safe.util.DeobfuscatorUtil
-
-import scala.collection.mutable
 
 /**
  * Renames variables to something easily readable.
@@ -38,7 +38,7 @@ class VariableRenamer(program: Program) {
    * Mapping between original variable identifiers and more "readable" variable
    * identifiers.
    */
-  private type IdMap = mutable.Map[String, String]
+  private type IdMap = MutableMap[String, String]
 
   /**
    * A stack of identifier mappings.
@@ -46,9 +46,9 @@ class VariableRenamer(program: Program) {
    * Each stack frame corresponds to a particular scope in the JavaScript
    * program.
    */
-  private type IdStack = mutable.ArrayStack[IdMap]
+  private type IdStack = ArrayStack[IdMap]
 
-  private class Env(val ids: IdStack = mutable.ArrayStack()) {
+  private class Env(val ids: IdStack = ArrayStack()) {
     private var suffixCounter = 0;
 
     private var animals = DeobfuscatorUtil.animals
@@ -59,7 +59,7 @@ class VariableRenamer(program: Program) {
      * This pushes an empty identifier mapping into the environment.
      */
     def enterScope(ast: ASTNode): Unit =
-      ids.push(mutable.Map())
+      ids.push(MutableMap())
 
     /**
      * Exit a scope.
