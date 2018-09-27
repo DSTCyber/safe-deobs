@@ -43,7 +43,7 @@ class ConstantPropagator(program: Program) {
    * Represents the possible abstract values of a variable in our constant
    * propagation domain. This domain represents the set `Literal ∪ ⊤`.
    */
-  private sealed abstract class AbstractValue {
+  private sealed trait AbstractValue {
     /**
      * Performs a join (⊔) operation on two abstract values.
      *
@@ -53,13 +53,7 @@ class ConstantPropagator(program: Program) {
     def join(other: AbstractValue): AbstractValue = this match {
       case Top => Top
       case Constant(c1) => other match {
-        case Constant(c2) =>
-          if (c1 =~ c2) Constant(c1) else Top
-        case _ => Top
-      }
-      case ConstantArray(c1) => other match {
-        case ConstantArray(c2) =>
-          if (equivalentLiterals(c1, c2)) ConstantArray(c1) else Top
+        case Constant(c2) => if (c1 =~ c2) Constant(c1) else Top
         case _ => Top
       }
     }
@@ -77,30 +71,31 @@ class ConstantPropagator(program: Program) {
   private case class Constant(expr: Literal) extends AbstractValue
 
   /**
-   * An abstract representation of an array containing constant (i.e. literal)
-   * values.
-   */
-  private case class ConstantArray(exprs: List[Literal]) extends AbstractValue
-
-  /**
-   * Helper function to determine whether two lists of literals are equivalent
-   * (used during a ⊔).
-   *
-   * Two lists of literals are equivalent if (a) they have the same length and
-   * (b) each element is equivalent between both arrays.
-   */
-  private def equivalentLiterals(l1: List[Literal], l2: List[Literal]): Boolean =
-    if (l1.length == l2.length) {
-      l1.zip(l2).forall { case (e1, e2) => e1 =~ e2 }
-    } else {
-      false
-    }
-
-  /**
    * Convenience `undefined` abstract variable.
    */
   private val undefined: AbstractValue =
     Constant(Undefined(ASTNodeInfo(Span())))
+
+  /**
+   * An abstract variable that will map to an abstract value.
+   */
+  private sealed trait AbstractVariable {
+    def name: String
+  }
+
+  /**
+   * A regular abstract variable. The variable must have an identifier (i.e.,
+   * name).
+   */
+  private case class Variable(name: String) extends AbstractVariable
+
+  /**
+   * An abstract variable representing an array access. Associates the name of
+   * the array with an index.
+   *
+   * Absolutely no bounds checking is done on this index.
+   */
+  private case class ArrayAccess(name: String, idx: Int) extends AbstractVariable
 
   /**
    * Takes a JavaScript expression and transforms it into an abstract value in
@@ -111,21 +106,14 @@ class ConstantPropagator(program: Program) {
    */
   private def makeAbstract(expr: Expr): AbstractValue = expr match {
     case l: Literal => Constant(l)
-    // Attempt to map each element of the array expression to a literal
-    // expression. If we can't, throw an exception, catch it and go to ⊤.
-    case ae: ArrayExpr => STry(ConstantArray(ae.elements.map {
-      case Some(l: Literal) => l
-      case _ => throw new Exception
-    })) getOrElse Top
-    case _ =>
-      Top
+    case _ => Top
   }
 
   /**
    * Mapping between the program's variables and their abstract values in the
    * set `Literal` ∪ ⊤`.
    */
-  private type VarMap = MutableMap[String, AbstractValue]
+  private type VarMap = MutableMap[AbstractVariable, AbstractValue]
 
   /**
    * A stack of variable mappings.
@@ -175,47 +163,80 @@ class ConstantPropagator(program: Program) {
       variables.pop()
 
     /**
-     * Create a new, uninitialized variable in the environment.
-     *
-     * The variable is added to the top stack frame and initialized to
-     * `undefined` (Secrion 13.3.2 of ECMA-262 edition 8).
-     */
-    def createVariable(name: Id): AbstractValue = {
-      val uninitialized = Constant(Undefined(name.info))
-      variables.head += name.text -> uninitialized
-      uninitialized
-    }
-
-    /**
-     * Create a new, initialized variable in the environment.
+     * Create a new, initialized abstract array access in the environment.
      *
      * The variable is added to the top stack frame and initialized with an
-     * abstract representation of the given expression
+     * abstract representation of the given expression. The array index is
+     * also recorded so the abstract value can be retrieved when this
+     * array is accessed.
      */
-    def createVariable(name: Id, value: Expr): AbstractValue = {
+    def createVariable(name: Id, idx: Int, value: Expr): Unit = {
       val absVal = makeAbstract(value)
-      variables.head += name.text -> absVal
-      absVal
+      variables.head += ArrayAccess(name.text, idx) -> absVal
     }
 
     /**
-     * Update the abstract value of a variable in the environment.
+     * Update the value of an abstract variable in the environment.
      *
-     * The variable must have already been defined in the environment. All
-     * stack frames are searched from top to bottom to find the variable to
-     * update.
+     * If the variable hasn't been defined yet, it will be added to the top
+     * stack frame.
      */
-    def updateVariable(name: Id, value: Expr): AbstractValue = {
+    def updateVariable(name: Id, value: Expr): Unit = {
+      val variable = Variable(name.text)
+      val absValue = makeAbstract(value)
+      variables.find(_.contains(variable)) match {
+        case Some(m) => m += variable -> absValue
+        // The variable hasn't been defined yet.
+        //
+        // Create a new, initialized abstract variable in the environment.
+        // This variable is added to the top stack frame and initialized
+        // with an abstract representation of the expression.
+        case None => variables.head += variable -> absValue
+      }
+    }
+
+    /**
+     * Update the value of an abstract array access in the environment.
+     *
+     * If the variable hasn't been defined yet, it will be added to the top
+     * stack frame.
+     */
+    def updateVariable(name: Id, idx: Int, value: Expr): Unit = {
+      val variable = ArrayAccess(name.text, idx)
+      val absValue = makeAbstract(value)
+      variables.find(_.contains(variable)) match {
+        case Some(m) => m += variable -> absValue
+        // The variable hasn't bee defined yet.
+        //
+        // Create a new, initialized abstract array access in the
+        // environment. This variable is added to teh top stack
+        // frame and initialized with an abstract representation
+        // of the expression.
+        case None => variables.head += variable -> absValue
+      }
+    }
+
+    /**
+     * Invalidate all the elements in an array by setting them all to ⊤.
+     *
+     * This must be done when an array update is performed but we cannot
+     * statically determine which array element (i.e., at what index) is
+     * being updated.
+     */
+    def invalidateArray(name: Id): Unit = {
       val nameText = name.text
-      variables.find(_.contains(nameText)) match {
-        case Some(m) =>
-          val absVal = makeAbstract(value)
-          m += nameText -> absVal
-          absVal
-        // Technically the variable should have been defined before it can be
-        // updated, but JavaScript is a funny language so we'll add the
-        // variable to the current stack frame.
-        case None => createVariable(name, value)
+      // Find the first stack frame that contains the array we want to
+      // invalidate. The array should at least have one element (at
+      // index 0), so just search for that.
+      val variable = ArrayAccess(nameText, 0)
+      variables.find(_.contains(variable)) match {
+        // For every abstract variable to abstract value in the given stack
+        // frame, find array accesses and set their value to ⊤
+        case Some(m) => m.foreach {
+          case (aa @ ArrayAccess(n, _), _) if nameText == n => m += aa -> Top
+          case _ => // Only interested in array accesses
+        }
+        case None => // Tried to invalidate a non-existent array
       }
     }
 
@@ -226,8 +247,19 @@ class ConstantPropagator(program: Program) {
      * is the global scope. `None` is returned if the variable isn't found.
      */
     def getVariable(name: Id): Option[AbstractValue] = {
-      val nameText = name.text
-      variables.find(_.contains(nameText)).flatMap(_.get(nameText))
+      val variable = Variable(name.text)
+      variables.find(_.contains(variable)).flatMap(_.get(variable))
+    }
+
+    /**
+     * Retrieves an array access from the environment.
+     *
+     * Each scope is searched from "newest" to "oldest", where the oldest scope
+     * is the global scope. `None` is returned if the variable isn't found.
+     */
+    def getVariable(name: Id, idx: Int): Option[AbstractValue] = {
+      val variable = ArrayAccess(name.text, idx)
+      variables.find(_.contains(variable)).flatMap(_.get(variable))
     }
 
     /**
@@ -339,7 +371,7 @@ class ConstantPropagator(program: Program) {
       // environment. The hoisting phase also ensures that the variable
       // declarations are uninitialized, so we set them all to the undefined
       // literal (as per the ECMA-262 spec).
-      // 
+      //
       // Following this, the function body is walked. Once the function body
       // has been walked, we can exit that scope and return the new function.
       case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
@@ -361,20 +393,6 @@ class ConstantPropagator(program: Program) {
       case _ =>
         val newNode = super.walk(node, env)
         if (newNode != node) walk(newNode, env) else newNode
-    }
-
-    override def walk(node: VarDecl, env: Env): VarDecl = node match {
-      // Create a new variable in the environment.
-      //
-      // The variable should not have an initializer expression associated with
-      // it - the AST rewriter's hoisting phase should have removed all of
-      // these. If an initializer expression is found, throw an error.
-      case VarDecl(_, name, expr, _) => expr match {
-        case Some(_) => throw InitializedVariableError(name)
-        case None =>
-          env.createVariable(name)
-          node
-      }
     }
 
     override def walk(node: Stmt, env: Env): Stmt = node match {
@@ -479,14 +497,46 @@ class ConstantPropagator(program: Program) {
 
     override def walk(node: Expr, env: Env): Expr = node match {
       // First, expand any compound assignment expressions (e.g. "+=", "<<=",
-      // etc.). If the expanded assignment expression is a regular assignment
-      // to a variable, update that variable in the environment. Note that this
-      // update will make non-constant expressions go to ⊤.
+      // etc.).
       case assign: AssignOpApp => expandCompoundAssignment(assign) match {
+        // If the expanded assignment expression is a regular assignment to a
+        // variable, update that variable in the environment. This update will
+        // make non-constant expressions go to ⊤
         case AssignOpApp(info, vr @ VarRef(_, id), op, right) =>
           val newRight = walk(right, env)
-          env.updateVariable(id, newRight)
+          newRight match {
+            // If we are assigning an array literal, abstract each element
+            // in this array and save it into the environment
+            case ae: ArrayExpr => ae.elements.zipWithIndex.map {
+              case (Some(e), idx) => env.updateVariable(id, idx, e)
+              case (None, _) => // Nothing to do here
+            }
+            // Any other expression is a regular variable update
+            case e => env.updateVariable(id, e)
+          }
           AssignOpApp(info, vr, op, newRight)
+
+        // The expanded assignment expression is an update to an array at a
+        // particular index.
+        //
+        // If we can statically determine the array index being updated, then
+        // update the abstract variable in the environment.
+        //
+        // If the array index cannot be statically determined, then we must
+        // invalidate the entire array by setting all elements to ⊤
+        case AssignOpApp(info, Bracket(bInfo, vr @ VarRef(_, id), index), op, rhs) =>
+          val newIndex = walk(index, env)
+          val newRhs = walk(rhs, env)
+          newIndex match {
+            case IntLiteral(_, intVal, _) =>
+              val idx = intVal.intValue
+              env.updateVariable(id, idx, newRhs)
+            case _ =>
+              env.invalidateArray(id)
+          }
+          AssignOpApp(info, Bracket(bInfo, vr, newIndex), op, newRhs)
+
+        // Some other assignment. Just walk it as usual
         case AssignOpApp(info, lhs, op, rhs) =>
           AssignOpApp(info, walk(lhs, env), op, walk(rhs, env))
       }
@@ -504,16 +554,16 @@ class ConstantPropagator(program: Program) {
       //
       // Note that we shouldn't see array accesses here (because they *should*
       // be captured by `Bracket` nodes)
-      case VarRef(_, id) => env.getVariable(id) match {
-        case Some(Constant(c)) => c
-        case _ => node
-      }
+      case VarRef(_, id) =>
+        env.getVariable(id) match {
+          case Some(Constant(c)) => c
+          case _ => node
+        }
 
       case Bracket(_, VarRef(_, id), IntLiteral(_, intVal, _)) =>
         val idx = intVal.intValue
-        env.getVariable(id) match {
-          case Some(ConstantArray(cs)) if idx >= 0 && idx < cs.length =>
-            cs(idx)
+        env.getVariable(id, idx) match {
+          case Some(Constant(c)) => c
           case _ => node
         }
 
