@@ -75,12 +75,6 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     // Simplify
     newProgram = NU.SimplifyWalker.walk(newProgram)
 
-    // Rename variables
-    val variableRenamer = new VariableRenamer(newProgram)
-    newProgram = variableRenamer.result
-    newExcLog += variableRenamer.excLog
-    if (newExcLog.hasError) return (newProgram, newExcLog)
-
     if (newExcLog.hasError || newProgram =~ program) {
       (newProgram, newExcLog)
     } else {
@@ -94,7 +88,12 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
     config: DeobfuscateConfig
   ): Try[Program] = {
     // Run all of the deobfuscators until we reach a steady-state
-    val (program, excLog) = deobfuscate(pgm, new ExcLog)
+    var (program, excLog) = deobfuscate(pgm, new ExcLog)
+
+    // Rename variables
+    val variableRenamer = new VariableRenamer(program)
+    program = variableRenamer.result
+    excLog += variableRenamer.excLog
 
     // Report errors.
     if (excLog.hasError && !safeConfig.testMode && !safeConfig.silent) {
@@ -107,7 +106,8 @@ case object Deobfuscate extends PhaseObj[Program, DeobfuscateConfig, Program] {
       case Some(out) => {
         val ((fw, writer)) = Useful.fileNameToWriters(out)
         writer.write(program.toString(0))
-        writer.close; fw.close
+        writer.close
+        fw.close
         println("Dumped deobfuscated AST to " + out)
       }
       case None => Try(program)
