@@ -75,7 +75,7 @@ class VariableRenamer(program: Program) {
      * identifier.
      */
     def genId(id: Id): Id = id match {
-      case Id(info, text, _, isWith) =>
+      case Id(ASTNodeInfo(span, _), text, _, isWith) =>
         // Take the next animal from the list. If an animal doesn't exist,
         // reset the list.
         val newName = animals.headOption.getOrElse {
@@ -88,13 +88,17 @@ class VariableRenamer(program: Program) {
         val suffix = if (suffixCounter > 0) s"_$suffixCounter" else s""
         val newText = newName + suffix
 
+        // Record the old variable name as a comment
+        val newInfo = ASTNodeInfo(span, Some(Comment(id.info, id.text)))
+
         // "Pop" the animal we just used from the list
         animals = animals.tail
+
         // Save the new variable name into the current stack frame
         ids.head += text -> newText
 
         // Return a new identifier
-        Id(info, newText, Some(newText), isWith)
+        Id(newInfo, newText, Some(newText), isWith)
     }
 
     /**

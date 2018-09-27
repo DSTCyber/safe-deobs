@@ -515,7 +515,9 @@ object NodeUtil {
         s.append(getIndent(indent + 1))
         vds.foreach(vd => vd match {
           case VarDecl(_, n, _, _) =>
-            s.append("var " + n.text + ";" + LINE_SEP + getIndent(indent + 1))
+            s.append("var " + n.text + ";")
+            s.append(n.comment.fold("")(" // " + _.txt))
+            s.append(LINE_SEP + getIndent(indent + 1))
         })
         s.append(LINE_SEP).append(getIndent(indent))
     }
