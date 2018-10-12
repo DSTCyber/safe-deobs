@@ -16,7 +16,6 @@ import scala.collection.mutable.{ ArrayStack, Map => MutableMap }
 import scala.util.{ Try => STry }
 
 import kr.ac.kaist.safe.errors.ExcLog
-import kr.ac.kaist.safe.errors.error._
 import kr.ac.kaist.safe.nodes.ast._
 import kr.ac.kaist.safe.util.Span
 
@@ -340,6 +339,24 @@ class ConstantPropagator(program: Program) {
     private def copyEnvs(n: Int)(env: Env): List[Env] =
       List.fill(n)(env.copy)
 
+    /**
+     * Returns `true` if the given source element is one that doesn't
+     * interfere with our constant propagation.
+     *
+     * Currently, we do not support constant propagation through loops and
+     * try/catch blocks.
+     */
+    private def isSupportedNode(node: SourceElement): Boolean = node match {
+      case _: DoWhile => false
+      case _: While => false
+      case _: For => false
+      case _: ForIn => false
+      case _: ForVar => false
+      case _: ForVarIn => false
+      case _: Try => false
+      case _ => true
+    }
+
     override def walk(node: TopLevel, env: Env): TopLevel = node match {
       case TopLevel(info, fds, vds, stmts) =>
         // Create the top level stack frame for all global variables and
@@ -395,16 +412,20 @@ class ConstantPropagator(program: Program) {
         if (newNode != node) walk(newNode, env) else newNode
     }
 
-    override def walk(node: Stmt, env: Env): Stmt = node match {
-      // TODO support loops and try/catch blocks
-      case _: DoWhile => throw UnsupportedStatementError(node)
-      case _: While => throw UnsupportedStatementError(node)
-      case _: For => throw UnsupportedStatementError(node)
-      case _: ForIn => throw UnsupportedStatementError(node)
-      case _: ForVar => throw UnsupportedStatementError(node)
-      case _: ForVarIn => throw UnsupportedStatementError(node)
-      case _: Try => throw UnsupportedStatementError(node)
+    override def walk(node: SourceElements, env: Env): SourceElements = node match {
+      // Split a list of source elements into two halves: the first half
+      // contains everything up to (but not including) an unsupported source
+      // element.
+      //
+      // This allows us to perform constant propagation up to an unsupported
+      // code construct (e.g., loop), but after that all bets are off so we
+      // just leave the remaining code unchanged.
+      case SourceElements(info, body, strict) =>
+        val (before, after) = body.span(isSupportedNode(_))
+        SourceElements(info, before.map(walk(_, env)) ++ after, strict)
+    }
 
+    override def walk(node: Stmt, env: Env): Stmt = node match {
       // A code block creates a new scope in the environment. Once the block's
       // statements have been walked, we can exit that scope adn return the new
       // statements.
