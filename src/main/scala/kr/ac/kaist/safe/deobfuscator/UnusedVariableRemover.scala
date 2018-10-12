@@ -42,7 +42,7 @@ class UnusedVariableRemover(program: Program) {
   private type IdStack = ArrayStack[MutableSet[Id]]
 
   /**
-   * Environment for recording for recording which variables are removable.
+   * Environment for recording which variables are removable.
    *
    * The environment is a stack of variable identifiers, where each stack frame
    * represents a new scope where variable declarations can occur. Due to
@@ -74,15 +74,19 @@ class UnusedVariableRemover(program: Program) {
       ids.pop()
 
     /**
-     * Add a variable to the environment.
+     * Mark a variable for removal.
+     *
+     * This variable is added to the environment.
      */
-    def addVar(id: Id): Unit =
+    def removeVar(id: Id): Unit =
       ids.head += id
 
     /**
-     * Remove a variable from the environment.
+     * Mark a variable to be kept.
+     *
+     * This variable is removed from the environment.
      */
-    def removeVar(id: Id): Unit = ids.find(_.exists(_ =~ id)) match {
+    def keepVar(id: Id): Unit = ids.find(_.exists(_ =~ id)) match {
       case Some(s) => s.retain(_ !=~ id)
       case None => ()
     }
@@ -164,7 +168,7 @@ class UnusedVariableRemover(program: Program) {
     override def walk(node: VarDecl, env: Env): VarDecl = node match {
       // Add a variable to the environment.
       case VarDecl(_, name, _, _) =>
-        env.addVar(name)
+        env.removeVar(name)
         node
     }
 
@@ -176,12 +180,20 @@ class UnusedVariableRemover(program: Program) {
       // removable.
       case AssignOpApp(info, vr @ VarRef(_, id), op, right) =>
         // It is not necessary to declare a variable (with val) before using
-        // it. Therefore we check that all assigned variables have been
+        // it. Therefore, we check that all assigned variables have been
         // declared. If a variable has not been declared, add it to the
         // environment in the current scope (if that variable is later
         // referenced it will be removed from the environment and not deleted).
-        if (!env.varDeclared(id)) env.addVar(id)
-        AssignOpApp(info, vr, op, walk(right, env))
+        if (!env.varDeclared(id)) env.removeVar(id)
+        val newRight = walk(right, env)
+        // If we are assigning the result of a function call to a variable,
+        // then we cannot delete this variable because we don't know what
+        // (if any) side-effects this function call may have
+        newRight match {
+          case _: FunApp => env.keepVar(id)
+          case _ => // Nothing to do here
+        }
+        AssignOpApp(info, vr, op, newRight)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -190,10 +202,10 @@ class UnusedVariableRemover(program: Program) {
     }
 
     override def walk(node: LHS, env: Env): LHS = node match {
-      // If we see a variable being referenced, we cannot remove it. Update
-      // the environment with this information
+      // We cannot delete a variable that is being references. Update the
+      // environment with this information
       case VarRef(_, id) =>
-        env.removeVar(id)
+        env.keepVar(id)
         node
 
       // Rewalk the node if a change has been made to the AST
