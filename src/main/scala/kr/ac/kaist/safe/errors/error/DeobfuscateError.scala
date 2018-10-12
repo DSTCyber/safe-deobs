@@ -27,7 +27,3 @@ sealed abstract class ConstantPropagationError(msg: String, ast: ASTNode) extend
 case class InitializedVariableError(id: Id) extends ConstantPropagationError({
   s"The variable '${id.text}' should not have an initializer - the AST writer should have removed this."
 }, id)
-
-case class UnsupportedStatementError(stmt: Stmt) extends ConstantPropagationError({
-  s"Constant propagation through ${stmt.getClass.getSimpleName} statements is not yet supported."
-}, stmt)
