@@ -19,7 +19,7 @@ import kr.ac.kaist.safe.nodes.ast._
 import kr.ac.kaist.safe.util.DeobfuscatorUtil
 
 /**
- * Renames variables to something easily readable.
+ * Renames variables and functions to something easily readable.
  */
 class VariableRenamer(program: Program) {
   ////////////////////////////////////////////////////////////////
@@ -35,8 +35,7 @@ class VariableRenamer(program: Program) {
   ////////////////////////////////////////////////////////////////
 
   /**
-   * Mapping between original variable identifiers and more "readable" variable
-   * identifiers.
+   * Mapping between the original identifiers and more "readable" identifiers.
    */
   private type IdMap = MutableMap[String, String]
 
@@ -48,18 +47,31 @@ class VariableRenamer(program: Program) {
    */
   private type IdStack = ArrayStack[IdMap]
 
-  private class Env(val ids: IdStack = ArrayStack()) {
-    private var suffixCounter = 0;
+  /**
+   * The variable/function renamer environment.
+   *
+   * Tracks renamed variables and functions. When a renamed variable or
+   * function is used, substitute its name.
+   */
+  private class Env(
+      val varIds: IdStack = ArrayStack(),
+      val funcIds: IdStack = ArrayStack()
+  ) {
+    private var animals: List[String] = DeobfuscatorUtil.animals
+    private var animalCounter: Int = 0
 
-    private var animals = DeobfuscatorUtil.animals
+    private var vegetables: List[String] = DeobfuscatorUtil.vegetables
+    private var vegetableCounter: Int = 0
 
     /**
      * Enter a new scope.
      *
      * This pushes an empty identifier mapping into the environment.
      */
-    def enterScope(ast: ASTNode): Unit =
-      ids.push(MutableMap())
+    def enterScope(ast: ASTNode): Unit = {
+      varIds.push(MutableMap())
+      funcIds.push(MutableMap())
+    }
 
     /**
      * Exit a scope.
@@ -67,49 +79,136 @@ class VariableRenamer(program: Program) {
      * This destroys the top (i.e. most recent) identifier mapping in the
      * environment.
      */
-    def exitScope(ast: ASTNode): Unit =
-      ids.pop()
-
-    /**
-     * Generate a new identifier (based on an animal name) for the given
-     * identifier.
-     */
-    def genId(id: Id): Id = id match {
-      case Id(ASTNodeInfo(span, _), text, _, isWith) =>
-        // Take the next animal from the list. If an animal doesn't exist,
-        // reset the list.
-        val newName = animals.headOption.getOrElse {
-          animals = DeobfuscatorUtil.animals
-          suffixCounter += 1
-          animals.head
-        }
-        // Only add a suffix once we've done one full iteration over the animal
-        // list
-        val suffix = if (suffixCounter > 0) s"_$suffixCounter" else s""
-        val newText = newName + suffix
-
-        // Record the old variable name as a comment
-        val newInfo = ASTNodeInfo(span, Some(Comment(id.info, id.text)))
-
-        // "Pop" the animal we just used from the list
-        animals = animals.tail
-
-        // Save the new variable name into the current stack frame
-        ids.head += text -> newText
-
-        // Return a new identifier
-        Id(newInfo, newText, Some(newText), isWith)
+    def exitScope(ast: ASTNode): Unit = {
+      varIds.pop()
+      funcIds.pop()
     }
 
     /**
-     * Retrieves a variable name from the environment.
+     * Generate a name based on a string and a counter.
+     *
+     * The counter is only used as a suffix if it we have done one full pass
+     * through the animal/vegetable list.
+     */
+    private def genName(s: String, i: Int): String =
+      s + (if (i > 0) s"_$i" else "")
+
+    /**
+     * Generate a string based on an animal name and some incrementing
+     * counter (if all the animal names have been used at least once).
+     */
+    private def getAnimal(): String = {
+      // Take the next animal from the list. If an animal doesn't exist,
+      // reset the list
+      val name = animals.headOption.getOrElse {
+        animals = DeobfuscatorUtil.animals
+        animalCounter += 1
+        animals.head
+      }
+
+      // "Pop" the animal we just used from the list
+      animals = animals.tail
+
+      // Generate a name
+      genName(name, animalCounter)
+    }
+
+    /**
+     * Generate a string based on an animal name and some incrementing
+     * counter (if all the animal names have been used at least once).
+     */
+    private def getVegetable(): String = {
+      // Take the next vegetable from the list. If a vegetable doesn't exist,
+      // reset the list
+      val name = vegetables.headOption.getOrElse {
+        vegetables = DeobfuscatorUtil.vegetables
+        vegetableCounter += 1
+        vegetables.head
+      }
+
+      // "Pop" the animal we just used from the list
+      vegetables = vegetables.tail
+
+      // Generate a name
+      genName(name, vegetableCounter)
+    }
+
+    /**
+     * Generate a new identifier for the given identifier and insert it into
+     * the given ID stack.
+     */
+    private def genId(ids: IdStack, id: Id, newName: String): Id = id match {
+      case Id(info, text, _, isWith) =>
+        // Save the new variable name into the current stack frame
+        ids.head += text -> newName
+
+        // Return a new identifier
+        Id(info, newName, Some(newName), isWith)
+    }
+
+    /**
+     * Generate a new identifier for the given identifier and insert it into
+     * the given ID stack.
+     *
+     * The old identifier is saved as a comment.
+     */
+    private def genIdWithComment(ids: IdStack, id: Id, newName: String): Id = id match {
+      case Id(_, text, _, isWith) =>
+        // Record the old variable name as a comment
+        val newInfo = ASTNodeInfo(id.span, Some(Comment(id.info, text)))
+
+        // Save the new variable name into the current stack frame
+        varIds.head += text -> newName
+
+        // Return a new identifier
+        Id(newInfo, newName, Some(newName), isWith)
+    }
+
+    /**
+     * Generate a new variable identifier (based on an animal name) for the
+     * given identifier.
+     */
+    def genVarId(id: Id): Id =
+      genId(varIds, id, getAnimal())
+
+    /**
+     * Generate a new function identifier (based on a vegetable name) for the
+     * given identifier.
+     */
+    def genFuncId(id: Id): Id =
+      genId(funcIds, id, getVegetable())
+
+    /**
+     * Generate a new variable identifier (based on an animal name) for the
+     * given identifier.
+     *
+     * The old identifier is saved as a comment.
+     */
+    def genVarIdWithComment(id: Id): Id =
+      genIdWithComment(varIds, id, getAnimal())
+
+    /**
+     * Retrieves a variable identifier from the environment.
      *
      * Each scope is searched from "newest" to "oldest", where the oldest scope
      * is the global scope. `None` is returned if the identifier isn't found.
      */
-    def getName(id: Id): Option[String] = {
-      val idText = id.text
-      ids.find(_.contains(idText)).flatMap(_.get(idText))
+    def getVarId(id: Id): Option[Id] = id match {
+      case Id(info, text, _, isWith) =>
+        val makeId = (s: String) => Id(info, s, Some(s), isWith)
+        varIds.find(_.contains(text)).flatMap(_.get(text)).map(makeId(_))
+    }
+
+    /**
+     * Retrieves a function identifier from the environment.
+     *
+     * Each scope is searched from "newest" to "oldest", where the oldest scope
+     * is the global scope. `None` is returned if the identifier isn't found.
+     */
+    def getFuncId(id: Id): Option[Id] = id match {
+      case Id(info, text, _, isWith) =>
+        val makeId = (s: String) => Id(info, s, Some(s), isWith)
+        funcIds.find(_.contains(text)).flatMap(_.get(text)).map(makeId(_))
     }
   }
 
@@ -141,6 +240,8 @@ class VariableRenamer(program: Program) {
       case Functional(info, fds, vds, stmts, name, params, body) =>
         // Create a new stack frame for this function
         env.enterScope(node)
+        // Rename the function parameters
+        val newParams = params.map(env.genVarId(_))
         // Walk the local variable declarations. This will generate new
         // identifiers for these variables
         val newVds = vds.map(walk(_, env))
@@ -150,7 +251,7 @@ class VariableRenamer(program: Program) {
         val newStmts = walk(stmts, env)
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        Functional(info, newFds, newVds, newStmts, name, params, body)
+        Functional(info, newFds, newVds, newStmts, name, newParams, body)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
@@ -161,8 +262,20 @@ class VariableRenamer(program: Program) {
     override def walk(node: VarDecl, env: Env): VarDecl = node match {
       // Rename variable declarations.
       case VarDecl(info, name, expr, isWith) =>
-        val newName = env.genId(name)
+        val newName = env.genVarIdWithComment(name)
         VarDecl(info, newName, expr.map(walk(_, env)), isWith)
+    }
+
+    override def walk(node: FunDecl, env: Env): FunDecl = node match {
+      // Rename functions.
+      //
+      // Don't forget to walk the function itself!
+      case FunDecl(info, ftn, strict) => walk(ftn, env) match {
+        case Functional(ftnInfo, fds, vds, stmts, name, params, body) =>
+          val newName = env.genFuncId(name)
+          val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
+          FunDecl(info, newFtn, strict)
+      }
     }
 
     override def walk(node: LHS, env: Env): LHS = node match {
@@ -171,9 +284,18 @@ class VariableRenamer(program: Program) {
       // It is not necessary to declare a variable (with val) before using it.
       // Therefore if we don't find the variable in the environment, just leave
       // it
-      case VarRef(info, id @ Id(idInfo, _, _, isWith)) => env.getName(id) match {
-        case Some(newId) => VarRef(info, Id(idInfo, newId, Some(newId), isWith))
-        case _ => node
+      case VarRef(info, id) => env.getVarId(id) match {
+        case Some(newId) => VarRef(info, newId)
+        case _ => super.walk(node, env)
+      }
+
+      // Rename the called function
+      case FunApp(info, VarRef(vrInfo, id), args) => {
+        val newArgs = args.map(walk(_, env))
+        env.getFuncId(id) match {
+          case Some(newId) => FunApp(info, VarRef(vrInfo, newId), newArgs)
+          case _ => FunApp(info, VarRef(vrInfo, id), newArgs)
+        }
       }
 
       // Rewalk the node if a change has been made to the AST
