@@ -13,10 +13,13 @@ package kr.ac.kaist.safe.phase
 
 import scala.util.{ Try, Failure }
 import kr.ac.kaist.safe.{ LINE_SEP, SafeConfig }
+import kr.ac.kaist.safe.json.ASTD3Protocol._
 import kr.ac.kaist.safe.parser.Parser
-import kr.ac.kaist.safe.nodes.ast.Program
+import kr.ac.kaist.safe.nodes.ast.{ ASTNode, Program }
 import kr.ac.kaist.safe.util._
 import kr.ac.kaist.safe.errors.error.NoFileError
+
+import spray.json._
 
 // Parse phase
 case object Parse extends PhaseObj[Unit, ParseConfig, Program] {
@@ -42,9 +45,17 @@ case object Parse extends PhaseObj[Unit, ParseConfig, Program] {
         config.outFile match {
           case Some(out) => {
             val (fw, writer) = Useful.fileNameToWriters(out)
-            writer.write(program.toString(0))
+            if (config.toD3Json) {
+              // Print JSON
+              val json = program.asInstanceOf[ASTNode].toJson
+              writer.write(json.toString)
+              println("Dumped parsed JavaScript code as JSON to " + out)
+            } else {
+              // Print JavaScript
+              writer.write(program.toString(0))
+              println("Dumped parsed JavaScript code to " + out)
+            }
             writer.close; fw.close
-            println("Dumped parsed JavaScript code to " + out)
           }
           case None =>
         }
@@ -57,11 +68,14 @@ case object Parse extends PhaseObj[Unit, ParseConfig, Program] {
   def defaultConfig: ParseConfig = ParseConfig()
   val options: List[PhaseOption[ParseConfig]] = List(
     ("out", StrOption((c, s) => c.outFile = Some(s)),
-      "the parsed JavaScript code will be written to the outfile.")
+      "the parsed JavaScript code will be written to the outfile."),
+    ("d3Json", BoolOption(c => c.toD3Json = true),
+      "write the output as a D3 JSON file.")
   )
 }
 
 // Parse phase config
 case class ParseConfig(
-  var outFile: Option[String] = None
+  var outFile: Option[String] = None,
+  var toD3Json: Boolean = false
 ) extends Config
