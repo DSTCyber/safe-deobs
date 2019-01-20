@@ -24,27 +24,30 @@ import DefaultJsonProtocol._
 object ASTD3Protocol extends DefaultJsonProtocol {
 
   implicit object ASTNodeD3JsonFormat extends RootJsonFormat[ASTNode] {
-    def toJson(node: Program): JsValue = node match {
+    private def toJsonWithoutNulls(seq: Seq[ASTNode]): Vector[JsValue] =
+      seq.map(toJson).filterNot(_ == JsNull).to[Vector]
+
+    private def toJson(node: Program): JsValue = node match {
       case Program(_, body) => JsObject(
         "name" -> JsString("program"),
         "children" -> JsArray(toJson(body))
       )
     }
 
-    def toJson(node: Stmt): JsValue = node match {
+    private def toJson(node: Stmt): JsValue = node match {
       case _: NoOp => JsNull
       case StmtUnit(_, stmts) => JsObject(
         "name" -> JsString("statements"),
-        "children" -> JsArray(stmts.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(stmts))
       )
       case fd: FunDecl => toJson(fd)
       case ABlock(_, stmts, _) => JsObject(
         "name" -> JsString("stmt block"),
-        "children" -> JsArray(stmts.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(stmts))
       )
       case VarStmt(_, vds) => JsObject(
         "name" -> JsString("variable"),
-        "children" -> JsArray(vds.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(vds))
       )
       case EmptyStmt(_) => JsObject("name" -> JsString("empty"))
       case ExprStmt(_, expr, _) => JsObject(
@@ -79,8 +82,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       case ForVar(_, vars, cond, action, body) => JsObject(
         "name" -> JsString("for var"),
         "children" -> JsArray(
-          vars.map(toJson).to[Vector] :+
-            cond.map(toJson).getOrElse(JsNull) :+
+          toJsonWithoutNulls(vars) :+ cond.map(toJson).getOrElse(JsNull) :+
             action.map(toJson).getOrElse(JsNull) :+ toJson(body)
         )
       )
@@ -107,9 +109,9 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       case Switch(_, cond, frontCases, defi, backCases) => JsObject(
         "name" -> JsString("switch"),
         "children" -> JsArray((toJson(cond) +:
-          frontCases.map(toJson).to[Vector]) ++
+          toJsonWithoutNulls(frontCases)) ++
           defi.map(_.map(toJson)).getOrElse(List(JsNull)) ++
-          backCases.map(toJson))
+          toJsonWithoutNulls(backCases))
       )
       case LabelStmt(_, label, stmt) => JsObject(
         "name" -> JsString("label"),
@@ -121,17 +123,17 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       )
       case Try(_, body, catchBlock, fin) => JsObject(
         "name" -> JsString("try"),
-        "children" -> JsArray((body.map(toJson).to[Vector] :+
+        "children" -> JsArray((toJsonWithoutNulls(body) :+
           catchBlock.map(toJson).getOrElse(JsNull)) ++
           fin.map(_.map(toJson)).getOrElse(List(JsNull)))
       )
       case Debugger(_) => JsObject("name" -> JsString("debugger"))
     }
 
-    def toJson(node: Expr): JsValue = node match {
+    private def toJson(node: Expr): JsValue = node match {
       case ExprList(_, exprs) => JsObject(
         "name" -> JsString("expressions"),
-        "children" -> JsArray(exprs.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(exprs))
       )
       case Cond(_, cond, trueB, falseB) => JsObject(
         "name" -> JsString("cond"),
@@ -157,7 +159,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       case EmptyExpr(_) => JsObject("name" -> JsString("empty"))
     }
 
-    def toJson(node: LHS): JsValue = node match {
+    private def toJson(node: LHS): JsValue = node match {
       case This(_) => JsObject("name" -> JsString("this"))
       case Null(_) => JsObject("name" -> JsString("null"))
       case Undefined(_) => JsObject("name" -> JsString("undefined"))
@@ -187,7 +189,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       )
       case ObjectExpr(_, members) => JsObject(
         "name" -> JsString("object"),
-        "children" -> JsArray(members.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(members))
       )
       case Parenthesized(_, expr) => JsObject(
         "name" -> JsString("parenthesized"),
@@ -211,55 +213,55 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       )
       case FunApp(_, fun, args) => JsObject(
         "name" -> JsString("function call"),
-        "children" -> JsArray(toJson(fun) +: args.map(toJson).to[Vector])
+        "children" -> JsArray(toJson(fun) +: toJsonWithoutNulls(args))
       )
     }
 
-    def toJson(node: NumberLiteral): JsValue = node match {
+    private def toJson(node: NumberLiteral): JsValue = node match {
       case DoubleLiteral(_, text, _) => JsObject("name" -> JsString(text))
       case IntLiteral(_, intVal, _) => JsObject("name" -> JsString(intVal.toString))
     }
 
-    def toJson(node: SourceElement): JsValue = node match {
+    private def toJson(node: SourceElement): JsValue = node match {
       case s: Stmt => toJson(s)
     }
 
-    def toJson(node: SourceElements): JsValue = node match {
+    private def toJson(node: SourceElements): JsValue = node match {
       case SourceElements(_, body, isStrict) => JsObject(
         "name" -> JsString(if (isStrict) "strict " else "" + "source elements"),
-        "children" -> JsArray(body.map(toJson).to[Vector])
+        "children" -> JsArray(toJsonWithoutNulls(body))
       )
     }
 
-    def toJson(node: FunDecl): JsValue = node match {
+    private def toJson(node: FunDecl): JsValue = node match {
       case FunDecl(_, ftn, isStrict) => JsObject(
         "name" -> JsString(if (isStrict) "strict " else "" + "function"),
         "children" -> JsArray(toJson(ftn))
       )
     }
 
-    def toJson(node: VarDecl): JsValue = node match {
+    private def toJson(node: VarDecl): JsValue = node match {
       case VarDecl(_, name, expr, isStrict) => JsObject(
         "name" -> JsString(if (isStrict) "strict " else "" + "variable"),
         "children" -> JsArray(toJson(name), expr.map(toJson).getOrElse(JsNull))
       )
     }
 
-    def toJson(node: Case): JsValue = node match {
+    private def toJson(node: Case): JsValue = node match {
       case Case(_, cond, body) => JsObject(
         "name" -> JsString("case"),
-        "children" -> JsArray(toJson(cond) +: body.map(toJson).to[Vector])
+        "children" -> JsArray(toJson(cond) +: toJsonWithoutNulls(body))
       )
     }
 
-    def toJson(node: Catch): JsValue = node match {
+    private def toJson(node: Catch): JsValue = node match {
       case Catch(_, id, body) => JsObject(
         "name" -> JsString("catch"),
-        "children" -> JsArray(toJson(id) +: body.map(toJson).to[Vector])
+        "children" -> JsArray(toJson(id) +: toJsonWithoutNulls(body))
       )
     }
 
-    def toJson(node: Property): JsValue = node match {
+    private def toJson(node: Property): JsValue = node match {
       case PropId(_, id) => JsObject(
         "name" -> JsString("identifier"),
         "children" -> JsArray(toJson(id))
@@ -273,7 +275,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       )
     }
 
-    def toJson(node: Member): JsValue = node match {
+    private def toJson(node: Member): JsValue = node match {
       case Field(_, prop, expr) => JsObject(
         "name" -> JsString("field"),
         "children" -> JsArray(toJson(prop), toJson(expr))
@@ -288,49 +290,50 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       )
     }
 
-    def toJson(node: Id): JsValue = node match {
+    private def toJson(node: Id): JsValue = node match {
       case Id(_, text, _, _) => JsObject("name" -> JsString(text))
     }
 
-    def toJson(node: Op): JsValue = node match {
+    private def toJson(node: Op): JsValue = node match {
       case Op(_, text) => JsObject("name" -> JsString(text))
     }
 
-    def toJson(node: AnonymousFnName): JsValue = node match {
+    private def toJson(node: AnonymousFnName): JsValue = node match {
       case AnonymousFnName(_, text) => JsObject("name" -> JsString(text))
     }
 
-    def toJson(node: Label): JsValue = node match {
+    private def toJson(node: Label): JsValue = node match {
       case Label(_, id) => JsObject(
         "name" -> JsString("label"),
         "children" -> JsArray(toJson(id))
       )
     }
 
-    def toJson(node: Comment): JsValue = node match {
+    private def toJson(node: Comment): JsValue = node match {
       case Comment(_, comment) => JsObject(
         "name" -> JsString("comment"),
         "children" -> JsArray(JsString(comment))
       )
     }
 
-    def toJson(node: TopLevel): JsValue = node match {
+    private def toJson(node: TopLevel): JsValue = node match {
       case TopLevel(_, fds, vds, stmts) => JsObject(
         "name" -> JsString("top level"),
-        "children" -> JsArray(fds.map(toJson).to[Vector] ++
-          vds.map(toJson) ++ stmts.map(toJson))
+        "children" -> JsArray(toJsonWithoutNulls(fds) ++
+          toJsonWithoutNulls(vds) ++ toJsonWithoutNulls(stmts))
       )
     }
 
-    def toJson(node: Functional): JsValue = node match {
+    private def toJson(node: Functional): JsValue = node match {
       case Functional(_, fds, vds, stmts, name, params, _) => JsObject(
         "name" -> JsString("functional"),
-        "children" -> JsArray((fds.map(toJson).to[Vector] ++ vds.map(toJson) :+
-          toJson(stmts) :+ toJson(name)) ++ params.map(toJson))
+        "children" -> JsArray((toJsonWithoutNulls(fds) ++
+          toJsonWithoutNulls(vds) :+ toJson(stmts) :+ toJson(name)) ++
+          toJsonWithoutNulls(params))
       )
     }
 
-    def write(node: ASTNode): JsValue = node match {
+    private def toJson(node: ASTNode): JsValue = node match {
       case p: Program => toJson(p)
       case s: SourceElement => toJson(s)
       case s: SourceElements => toJson(s)
@@ -349,6 +352,9 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       case f: Functional => toJson(f)
     }
 
-    def read(value: JsValue): ASTNode = throw new DeserializationException("JSON read not supported")
+    def write(node: ASTNode): JsValue = toJson(node)
+
+    def read(value: JsValue): ASTNode =
+      throw new DeserializationException("JSON read not supported")
   }
 }
