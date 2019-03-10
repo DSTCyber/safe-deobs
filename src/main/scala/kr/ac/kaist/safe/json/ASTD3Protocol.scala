@@ -27,37 +27,45 @@ object ASTD3Protocol extends DefaultJsonProtocol {
     private def toJsonWithoutNulls(seq: Seq[ASTNode]): Vector[JsValue] =
       seq.map(toJson).filterNot(_ == JsNull).to[Vector]
 
+    private def toJsonWithoutNulls(opt: Option[ASTNode]): Vector[JsValue] =
+      opt.map(toJson) match {
+        case Some(json) => Vector(json)
+        case None => Vector()
+      }
+
     private def toJson(node: Program): JsValue = node match {
-      case Program(_, body) => JsObject(
+      case Program(_, TopLevel(_, fds, vds, stmts)) => JsObject(
         "name" -> JsString("program"),
-        "children" -> JsArray(toJson(body))
+        "children" -> JsArray(toJsonWithoutNulls(fds) ++
+          toJsonWithoutNulls(vds) ++ toJsonWithoutNulls(stmts))
       )
     }
 
     private def toJson(node: Stmt): JsValue = node match {
       case _: NoOp => JsNull
       case StmtUnit(_, stmts) => JsObject(
-        "name" -> JsString("statements"),
+        "name" -> JsString("stmts"),
         "children" -> JsArray(toJsonWithoutNulls(stmts))
       )
       case fd: FunDecl => toJson(fd)
       case ABlock(_, stmts, _) => JsObject(
-        "name" -> JsString("stmt block"),
+        "name" -> JsString("stmts"),
         "children" -> JsArray(toJsonWithoutNulls(stmts))
       )
+      case VarStmt(_, List(vd)) => toJson(vd)
       case VarStmt(_, vds) => JsObject(
-        "name" -> JsString("variable"),
+        "name" -> JsString("vars"),
         "children" -> JsArray(toJsonWithoutNulls(vds))
       )
       case EmptyStmt(_) => JsObject("name" -> JsString("empty"))
       case ExprStmt(_, expr, _) => JsObject(
-        "name" -> JsString("expression"),
+        "name" -> JsString("expr"),
         "children" -> JsArray(toJson(expr))
       )
       case If(_, cond, trueB, falseB) => JsObject(
         "name" -> JsString("if"),
-        "children" -> JsArray(toJson(cond), toJson(trueB),
-          falseB.map(toJson).getOrElse(JsNull))
+        "children" -> JsArray(toJson(cond) +: toJson(trueB) +:
+          toJsonWithoutNulls(falseB))
       )
       case DoWhile(_, body, cond) => JsObject(
         "name" -> JsString("do while"),
@@ -80,27 +88,27 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "children" -> JsArray(toJson(lhs), toJson(expr), toJson(body))
       )
       case ForVar(_, vars, cond, action, body) => JsObject(
-        "name" -> JsString("for var"),
+        "name" -> JsString("for"),
         "children" -> JsArray(
           toJsonWithoutNulls(vars) :+ cond.map(toJson).getOrElse(JsNull) :+
             action.map(toJson).getOrElse(JsNull) :+ toJson(body)
         )
       )
       case ForVarIn(_, vari, expr, body) => JsObject(
-        "name" -> JsString("for var in"),
+        "name" -> JsString("for"),
         "children" -> JsArray(toJson(vari), toJson(expr), toJson(body))
       )
       case Continue(_, target) => JsObject(
         "name" -> JsString("continue"),
-        "children" -> JsArray(target.map(toJson).getOrElse(JsNull))
+        "children" -> JsArray(toJsonWithoutNulls(target))
       )
       case Break(_, target) => JsObject(
         "name" -> JsString("break"),
-        "children" -> JsArray(target.map(toJson).getOrElse(JsNull))
+        "children" -> JsArray(toJsonWithoutNulls(target))
       )
       case Return(_, expr) => JsObject(
         "name" -> JsString("return"),
-        "children" -> JsArray(expr.map(toJson).getOrElse(JsNull))
+        "children" -> JsArray(toJsonWithoutNulls(expr))
       )
       case With(_, expr, stmt) => JsObject(
         "name" -> JsString("with"),
@@ -110,7 +118,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "name" -> JsString("switch"),
         "children" -> JsArray((toJson(cond) +:
           toJsonWithoutNulls(frontCases)) ++
-          defi.map(_.map(toJson)).getOrElse(List(JsNull)) ++
+          defi.map(_.map(toJson)).getOrElse(Vector()) ++
           toJsonWithoutNulls(backCases))
       )
       case LabelStmt(_, label, stmt) => JsObject(
@@ -125,14 +133,14 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "name" -> JsString("try"),
         "children" -> JsArray((toJsonWithoutNulls(body) :+
           catchBlock.map(toJson).getOrElse(JsNull)) ++
-          fin.map(_.map(toJson)).getOrElse(List(JsNull)))
+          fin.map(_.map(toJson)).getOrElse(Vector()))
       )
       case Debugger(_) => JsObject("name" -> JsString("debugger"))
     }
 
     private def toJson(node: Expr): JsValue = node match {
       case ExprList(_, exprs) => JsObject(
-        "name" -> JsString("expressions"),
+        "name" -> JsString("exprs"),
         "children" -> JsArray(toJsonWithoutNulls(exprs))
       )
       case Cond(_, cond, trueB, falseB) => JsObject(
@@ -140,19 +148,19 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "children" -> JsArray(toJson(cond), toJson(trueB), toJson(falseB))
       )
       case InfixOpApp(_, left, op, right) => JsObject(
-        "name" -> JsString("infix op"),
+        "name" -> JsString("op"),
         "children" -> JsArray(toJson(left), toJson(op), toJson(right))
       )
       case PrefixOpApp(_, op, right) => JsObject(
-        "name" -> JsString("prefix op"),
+        "name" -> JsString("op"),
         "children" -> JsArray(toJson(op), toJson(right))
       )
       case UnaryAssignOpApp(_, lhs, op) => JsObject(
-        "name" -> JsString("unary assign op"),
+        "name" -> JsString("assign"),
         "children" -> JsArray(toJson(lhs), toJson(op))
       )
       case AssignOpApp(_, lhs, op, right) => JsObject(
-        "name" -> JsString("assign op"),
+        "name" -> JsString("assign"),
         "children" -> JsArray(toJson(lhs), toJson(op), toJson(right))
       )
       case l: LHS => toJson(l)
@@ -196,7 +204,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "children" -> JsArray(toJson(expr))
       )
       case FunExpr(_, ftn) => JsObject(
-        "name" -> JsString("function"),
+        "name" -> JsString("func"),
         "children" -> JsArray(toJson(ftn))
       )
       case Bracket(_, obj, index) => JsObject(
@@ -212,7 +220,7 @@ object ASTD3Protocol extends DefaultJsonProtocol {
         "children" -> JsArray(toJson(lhs))
       )
       case FunApp(_, fun, args) => JsObject(
-        "name" -> JsString("function call"),
+        "name" -> JsString("func call"),
         "children" -> JsArray(toJson(fun) +: toJsonWithoutNulls(args))
       )
     }
@@ -228,22 +236,24 @@ object ASTD3Protocol extends DefaultJsonProtocol {
 
     private def toJson(node: SourceElements): JsValue = node match {
       case SourceElements(_, body, isStrict) => JsObject(
-        "name" -> JsString(if (isStrict) "strict " else "" + "source elements"),
+        "name" -> JsString(if (isStrict) "strict " else "" + "src elems"),
         "children" -> JsArray(toJsonWithoutNulls(body))
       )
     }
 
     private def toJson(node: FunDecl): JsValue = node match {
-      case FunDecl(_, ftn, isStrict) => JsObject(
-        "name" -> JsString(if (isStrict) "strict " else "" + "function"),
-        "children" -> JsArray(toJson(ftn))
+      case FunDecl(_, Functional(_, fds, vds, stmts, name, params, _), isStrict) => JsObject(
+        "name" -> JsString(if (isStrict) "strict " else "" + "func"),
+        "children" -> JsArray((toJsonWithoutNulls(fds) ++
+          toJsonWithoutNulls(vds) :+ toJson(stmts) :+ toJson(name)) ++
+          toJsonWithoutNulls(params))
       )
     }
 
     private def toJson(node: VarDecl): JsValue = node match {
       case VarDecl(_, name, expr, isStrict) => JsObject(
-        "name" -> JsString(if (isStrict) "strict " else "" + "variable"),
-        "children" -> JsArray(toJson(name), expr.map(toJson).getOrElse(JsNull))
+        "name" -> JsString(if (isStrict) "strict " else "" + "var"),
+        "children" -> JsArray(toJson(name) +: toJsonWithoutNulls(expr))
       )
     }
 
