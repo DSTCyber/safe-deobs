@@ -22,6 +22,8 @@ trait ASTEnvWalker[Env] {
     case p: Program => walk(p, env)
     case s: SourceElement => walk(s, env)
     case s: SourceElements => walk(s, env)
+    case s: Stmt => walk(s, env)
+    case s: Stmts => walk(s, env)
     case v: VarDecl => walk(v, env)
     case c: Case => walk(c, env)
     case c: Catch => walk(c, env)
@@ -163,13 +165,17 @@ trait ASTEnvWalker[Env] {
   }
 
   def walk(node: SourceElement, env: Env): SourceElement = node match {
-    case s: Stmt =>
-      walk(s, env)
+    case s: Stmt => walk(s, env)
   }
 
   def walk(node: SourceElements, env: Env): SourceElements = node match {
     case SourceElements(info, body, isStrict) =>
       SourceElements(walk(info, env), body.map(walk(_, env)), isStrict)
+  }
+
+  def walk(node: Stmts, env: Env): Stmts = node match {
+    case Stmts(info, body, isStrict) =>
+      Stmts(walk(info, env), body.map(walk(_, env)), isStrict)
   }
 
   def walk(node: FunDecl, env: Env): FunDecl = node match {

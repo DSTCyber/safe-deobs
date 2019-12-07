@@ -391,7 +391,7 @@ class ConstantPropagator(program: Program) {
       //
       // Following this, the function body is walked. Once the function body
       // has been walked, we can exit that scope and return the new function.
-      case Functional(info, fds, vds, SourceElements(seInfo, seBody, strict), name, params, body) =>
+      case Functional(info, fds, vds, Stmts(seInfo, seBody, strict), name, params, body) =>
         // Create a new stack frame for this function
         env.enterScope(node)
         // Walk the local variable declarations. This will create new abstract
@@ -404,7 +404,7 @@ class ConstantPropagator(program: Program) {
         val newSeBody = seBody.map(walk(_, env))
         // We're finished - destroy this stack frame
         env.exitScope(node)
-        Functional(info, newFds, newVds, SourceElements(seInfo, newSeBody, strict), name, params, body)
+        Functional(info, newFds, newVds, Stmts(seInfo, newSeBody, strict), name, params, body)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>

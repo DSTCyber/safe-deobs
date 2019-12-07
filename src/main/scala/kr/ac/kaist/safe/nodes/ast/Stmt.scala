@@ -21,6 +21,12 @@ case class Stmts(
     strict: Boolean
 ) extends ASTNode {
   override def toString(indent: Int): String = ""
+
+  override def =~(that: ASTNode): Boolean = (this, that) match {
+    case (Stmts(_, body1, strict1), Stmts(_, body2, strict2)) =>
+      NU.fuzzyCompare(body1, body2) && strict1 == strict2
+    case _ => false
+  }
 }
 
 // Statements

@@ -166,7 +166,7 @@ JScriptMemFunDecl JScriptMemberFunctionDeclaration =
        else ids = toList(a3);
        yyValue = new JScriptMemFunDecl(info, a1, members,
                                        new Functional(info, nilFds, nilVds,
-                                                      new SourceElements(info, toList(a4._1()), a4._3()),
+                                                      new Stmts(info, toList(a4._1()), a4._3()),
                                                       f, ids, a4._2()), false);
      };
 
@@ -184,7 +184,7 @@ public LHS JScriptMemberFunctionExpr =
        else ids = toList(a3);
        yyValue = new JScriptMemFunExpr(info, a1, members,
                                        new Functional(info, nilFds, nilVds,
-                                                      new SourceElements(info, toList(a4._1()), a4._3()),
+                                                      new Stmts(info, toList(a4._1()), a4._3()),
                                                       f, ids, a4._2()));
      };
 

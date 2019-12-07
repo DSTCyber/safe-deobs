@@ -230,10 +230,6 @@ object ASTD3Protocol extends DefaultJsonProtocol {
       case IntLiteral(_, intVal, _) => JsObject("name" -> JsString(intVal.toString))
     }
 
-    private def toJson(node: SourceElement): JsValue = node match {
-      case s: Stmt => toJson(s)
-    }
-
     private def toJson(node: SourceElements): JsValue = node match {
       case SourceElements(_, body, isStrict) => JsObject(
         "name" -> JsString(if (isStrict) "strict " else "" + "src elems"),

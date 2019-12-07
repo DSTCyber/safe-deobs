@@ -306,7 +306,7 @@ object NodeUtil {
   val JSCRIPT_CC_JSCRIPT = internalAPIName("_jscript")
   val JSCRIPT_CC_JSCRIPT_BUILD = internalAPIName("_jscript_build")
   val JSCRIPT_CC_JSCRIPT_VERSION = internalAPIName("_jscript_version")
-  val jScriptCCVarSet: Set[String] = HashSet(
+  val jScriptCCVarSet: Set[String] = Set(
     JSCRIPT_CC_WINTHIRTYTWO,
     JSCRIPT_CC_WINSIXTYFOUR,
     JSCRIPT_CC_WINSIXTEEN,
