@@ -874,4 +874,3 @@ case class JScriptConditionalIf(
     case _ => false
   }
 }
-
