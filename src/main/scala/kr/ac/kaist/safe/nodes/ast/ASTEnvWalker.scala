@@ -91,12 +91,6 @@ trait ASTEnvWalker[Env] {
       Try(walk(info, env), body.map(walk(_, env)), catchBlock.map(walk(_, env)), fin.map(_.map(walk(_, env))))
     case Debugger(info) =>
       Debugger(walk(info, env))
-    case JScriptMemFunDecl(info, obj, members, ftn, isStrict) =>
-      JScriptMemFunDecl(walk(info, env), walk(obj, env), members.map(walk(_, env)), walk(ftn, env), isStrict)
-    case JScriptConditionalCompilation(info, stmts) =>
-      JScriptConditionalCompilation(walk(info, env), stmts.map(walk(_, env)))
-    case JScriptConditionalIf(info, conds, trueBranches, falseBranch) =>
-      JScriptConditionalIf(walk(info, env), conds.map(walk(_, env)), trueBranches.map(walk(_, env)), falseBranch.map(walk(_, env)))
   }
 
   def walk(node: Expr, env: Env): Expr = node match {
@@ -153,8 +147,6 @@ trait ASTEnvWalker[Env] {
       New(walk(info, env), walk(lhs, env))
     case FunApp(info, fun, args) =>
       FunApp(walk(info, env), walk(fun, env), args.map(walk(_, env)))
-    case JScriptMemFunExpr(info, obj, members, ftn) =>
-      JScriptMemFunExpr(walk(info, env), walk(obj, env), members.map(walk(_, env)), walk(ftn, env))
   }
 
   def walk(node: NumberLiteral, env: Env): NumberLiteral = node match {

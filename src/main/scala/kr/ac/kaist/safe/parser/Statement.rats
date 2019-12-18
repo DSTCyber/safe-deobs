@@ -48,8 +48,6 @@ import Spacing;
  * | try w ABlock w Finally
  * | try w ABlock w Catch w Finally
  * | debugger w ;
- * | /*@cc_on JScriptConditionalCompilation @*\/
- * | @if w ( w Expression w ) w Statement w (@elif w Expression w Statement w)* (else w Statement)?
  */
 private transient void NumericLiteral =
      a1:DecimalDigits !(idrest) { log(writer, a1); } ;
@@ -209,34 +207,13 @@ public Stmt Statement =
    / debugger EOS
      { Span span = createSpan(yyStart,yyCount);
        yyValue = new Debugger(NodeUtil.makeASTNodeInfo(span));
-     }
-   / a1:JScriptMultiLineConditionalCompilation
-     { Span span = createSpan(yyStart,yyCount);
-       yyValue = new JScriptConditionalCompilation(NodeUtil.makeASTNodeInfo(span), toList(a1));
-     }
-   / jScriptConditionalIf w openparen w a1:Expression w closeparen w a2:Statement
-     a3s:(w JScriptConditionalElif)* a4:(w jScriptConditionalElse w Statement)? w jScriptConditionalEndIf
-     { Span span = createSpan(yyStart,yyCount);
-       List<Expr> conds = new ArrayList<Expr>(); conds.add(a1);
-       List<Stmt> trueBs = new ArrayList<Stmt>(); trueBs.add(a2);
-       if (a3s != null) {
-           for (Tuple2<Expr, Stmt> pair:a3s) {
-               conds.add(pair._1());
-               trueBs.add(pair._2());
-           }
-       }
-       Option<Stmt> elseB;
-       if (a4 == null) elseB = Option.<Stmt>apply(null);
-       else            elseB = Some.<Stmt>apply(a4);
-       yyValue = new JScriptConditionalIf(NodeUtil.makeASTNodeInfo(span), toList(conds), toList(trueBs), elseB);
      };
 
 private transient Stmt ExtendedFunctionDeclaration =
      a1:FunctionDeclaration
      { //excLog.signal(new Warning(a1.info().span())); "FunctionDeclaration as a Statement is not allowed in ECMAScript."
        yyValue = a1;
-     }
-   / yyValue:JScriptMemberFunctionDeclaration;
+     };
 
 /*
  * ABlock ::= { (w Statement)* w }
@@ -245,7 +222,9 @@ transient List<Stmt> ABlock =
      opencurly w closecurly
      { yyValue = list(); }
    / opencurly w a1:Statement a2s:(w Statement)* w closecurly
-     { yyValue = cons(a1, a2s.list()); };
+     { Span span = createSpan(yyStart,yyCount+1);
+       yyValue = cons(a1, a2s.list());
+     };
 
 /*
  * VariableDeclarationList ::=
@@ -320,16 +299,3 @@ private transient Catch Catch =
  */
 private transient List<Stmt> Finally =
      finally w yyValue:ABlock ;
-
-/*
- * JScriptMultiLineConditionalCompilation ::= /*@cc_on Statement* @*\/
- */
-private transient List<Stmt> JScriptMultiLineConditionalCompilation =
-    "/*" jScriptCCOn w "@*/"
-    { yyValue = list(); }
-  / "/*" jScriptCCOn w a1:Statement a2s:(w Statement)* w "@*/"
-    { yyValue = cons(a1, a2s.list()); };
-
-private transient Tuple2<Expr, Stmt> JScriptConditionalElif =
-    jScriptConditionalElif w openparen w a1:Expression w closeparen w a2:Statement
-    { yyValue = new Tuple2<Expr, Stmt>(a1, a2); };

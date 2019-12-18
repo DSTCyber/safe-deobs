@@ -104,9 +104,3 @@ transient void boolean = "boolean" !(idrest);
 transient void string = "string" !(idrest);
 transient void private = "private" !(idrest);
 transient void public = "public" !(idrest);
-
-transient void jScriptCCOn = "@cc_on" !(idrest);
-transient void jScriptConditionalIf = "@if" !(idrest);
-transient void jScriptConditionalElif = "@elif" !(idrest);
-transient void jScriptConditionalElse = "@else" !(idrest);
-transient void jScriptConditionalEndIf = "@end" !(idrest);

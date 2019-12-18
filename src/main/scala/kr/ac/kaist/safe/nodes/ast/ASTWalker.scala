@@ -88,12 +88,6 @@ trait ASTWalker {
       Try(walk(info), body.map(walk), catchBlock.map(walk), fin.map(_.map(walk)))
     case Debugger(info) =>
       Debugger(walk(info))
-    case JScriptMemFunDecl(info, obj, members, ftn, isStrict) =>
-      JScriptMemFunDecl(walk(info), walk(obj), members.map(walk), walk(ftn), isStrict)
-    case JScriptConditionalCompilation(info, stmts) =>
-      JScriptConditionalCompilation(walk(info), stmts.map(walk))
-    case JScriptConditionalIf(info, conds, trueBranches, falseBranch) =>
-      JScriptConditionalIf(walk(info), conds.map(walk), trueBranches.map(walk), falseBranch.map(walk))
   }
 
   def walk(node: Expr): Expr = node match {
@@ -150,8 +144,6 @@ trait ASTWalker {
       New(walk(info), walk(lhs))
     case FunApp(info, fun, args) =>
       FunApp(walk(info), walk(fun), args.map(walk))
-    case JScriptMemFunExpr(info, obj, members, ftn) =>
-      JScriptMemFunExpr(walk(info), walk(obj), members.map(walk), walk(ftn))
   }
 
   def walk(node: NumberLiteral): NumberLiteral = node match {

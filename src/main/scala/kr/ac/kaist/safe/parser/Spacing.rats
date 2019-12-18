@@ -18,7 +18,6 @@
 module kr.ac.kaist.safe.parser.Spacing(Symbol, Identifier);
 
 import Symbol;
-import Keyword;
 import Identifier;
 
 transient void EndOfFile  = "\u001a"? w !_ ;
@@ -44,7 +43,7 @@ transient void Comment =
    / SingleLineComment ;
 
 transient void MultiLineComment =
-     "/*" !(jScriptCCOn) a1s:MultiLineCommentChar* "*/"
+     "/*" a1s:MultiLineCommentChar* "*/"
      { StringBuilder buf = new StringBuilder();
        buf.append("/*");
        for (String s : a1s.list()) buf.append(s);
@@ -56,7 +55,7 @@ transient private String MultiLineCommentChar =
      !("*/") a1:_ { yyValue = a1+""; } ;
 
 transient String MultiLineCommentWLB =
-     "/*" !(jScriptCCOn) a1s:MultiLineCommentCharNoLB* a2:LineTerminator a3s:MultiLineCommentCharWLB* "*/"
+     "/*" a1s:MultiLineCommentCharNoLB* a2:LineTerminator a3s:MultiLineCommentCharWLB* "*/"
      { StringBuilder buf = new StringBuilder();
        buf.append("/*");
        for (String s : a1s.list()) buf.append(s);
@@ -71,7 +70,7 @@ transient private String MultiLineCommentCharWLB =
      !("*/") _ ;
 
 transient String MultiLineCommentNoLB =
-     "/*" !(jScriptCCOn) a1s:MultiLineCommentCharNoLB* "*/"
+     "/*" a1s:MultiLineCommentCharNoLB* "*/"
      { StringBuilder buf = new StringBuilder();
        buf.append("/*");
        for (String s : a1s.list()) buf.append(s);
