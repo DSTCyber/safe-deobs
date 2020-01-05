@@ -174,9 +174,14 @@ class VariableRenamer(program: Program) {
     /**
      * Generate a new function identifier (based on a vegetable name) for the
      * given identifier.
+     *
+     * Note that anonymous function expressions are possible. So if the name
+     * is empty, keep it empty.
      */
-    def genFuncId(id: Id): Id =
-      genId(funcIds, id, getVegetable())
+    def genFuncId(id: Id): Id = id match {
+      case Id(_, "", _, _) => id
+      case _ => genId(funcIds, id, getVegetable())
+    }
 
     /**
      * Generate a new variable identifier (based on an animal name) for the
@@ -230,10 +235,7 @@ class VariableRenamer(program: Program) {
         env.exitScope(node)
         TopLevel(info, newFds, newVds, newStmts)
 
-      // Rewalk the node if a change has been made to the AST
-      case _ =>
-        val newNode = super.walk(node, env)
-        if (newNode != node) walk(newNode, env) else newNode
+      case _ => super.walk(node, env)
     }
 
     override def walk(node: Functional, env: Env): Functional = node match {
@@ -253,10 +255,7 @@ class VariableRenamer(program: Program) {
         env.exitScope(node)
         Functional(info, newFds, newVds, newStmts, name, newParams, body)
 
-      // Rewalk the node if a change has been made to the AST
-      case _ =>
-        val newNode = super.walk(node, env)
-        if (newNode != node) walk(newNode, env) else newNode
+      case _ => super.walk(node, env)
     }
 
     override def walk(node: VarDecl, env: Env): VarDecl = node match {
@@ -289,19 +288,28 @@ class VariableRenamer(program: Program) {
         case _ => super.walk(node, env)
       }
 
-      // Rename the called function
-      case FunApp(info, VarRef(vrInfo, id), args) => {
+      // Rename a function expression. May be anonymous
+      case FunExpr(info, ftn) => walk(ftn, env) match {
+        case Functional(ftnInfo, fds, vds, stmts, name, params, body) =>
+          val newName = env.genFuncId(name)
+          val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
+          FunExpr(info, newFtn)
+      }
+
+      // Rename the called function. The called function could be an anonymous
+      // function and may not be identified by a VarRef; in this case just
+      // return the original FunApp with only the arguments updated
+      case FunApp(info, fun, args) => {
         val newArgs = args.map(walk(_, env))
-        env.getFuncId(id) match {
-          case Some(newId) => FunApp(info, VarRef(vrInfo, newId), newArgs)
-          case _ => FunApp(info, VarRef(vrInfo, id), newArgs)
+        fun match {
+          case VarRef(vrInfo, id) =>
+            val newId = env.getFuncId(id).getOrElse(id)
+            FunApp(info, VarRef(vrInfo, newId), newArgs)
+          case _ => FunApp(info, walk(fun, env), newArgs)
         }
       }
 
-      // Rewalk the node if a change has been made to the AST
-      case _ =>
-        val newNode = super.walk(node, env)
-        if (newNode != node) walk(newNode, env) else newNode
+      case _ => super.walk(node, env)
     }
   }
 
