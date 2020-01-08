@@ -41,13 +41,16 @@ class StringDecoder(program: Program) {
 
     /**
      * Hex-encoded characters are converted to ASCII values when possible.
-     * Quote (") characters within the character sequence must be escaped so
-     * that the string can be re-terminated.
+     * Quote (" and ') characters within the character sequence must be escaped
+     * so that the string can be re-terminated.
      */
     def unescapeHex(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
-        Character.digit(x3, 16) != -1 => combineHexChars(x2, x3) +: unescapeHex(xs)
+        Character.digit(x3, 16) != -1 =>
+        val c = combineHexChars(x2, x3)
+        val pre = if (c == '"' || c == '\'') Seq('\\', c) else Seq(c)
+        pre ++ unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
       case Seq() => ""
     }
