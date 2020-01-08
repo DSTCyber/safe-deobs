@@ -517,6 +517,11 @@ class ConstantPropagator(program: Program) {
     }
 
     override def walk(node: Expr, env: Env): Expr = node match {
+      // Cannot propagate a constant value into a unary pre/postfix "++" or "--"
+      case PrefixOpApp(_, Op(_, "++"), _: VarRef) |
+        PrefixOpApp(_, Op(_, "--"), _: VarRef) => node
+      case UnaryAssignOpApp(_, _: VarRef, _) => node
+
       // First, expand any compound assignment expressions (e.g. "+=", "<<=",
       // etc.).
       case assign: AssignOpApp => expandCompoundAssignment(assign) match {
