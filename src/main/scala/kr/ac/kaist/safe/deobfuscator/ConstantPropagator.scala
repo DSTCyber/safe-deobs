@@ -205,7 +205,7 @@ class ConstantPropagator(program: Program) {
       val absValue = makeAbstract(value)
       variables.find(_.contains(variable)) match {
         case Some(m) => m += variable -> absValue
-        // The variable hasn't bee defined yet.
+        // The variable hasn't been defined yet.
         //
         // Create a new, initialized abstract array access in the
         // environment. This variable is added to teh top stack
@@ -238,6 +238,12 @@ class ConstantPropagator(program: Program) {
         case None => // Tried to invalidate a non-existent array
       }
     }
+
+    /**
+     * Invalidate all variables in the environment by setting them to ⊤.
+     */
+    def invalidateVariables(): Unit =
+      variables.map(_.map(_ -> Top))
 
     /**
      * Retrieves a variable from the environment.
@@ -339,24 +345,6 @@ class ConstantPropagator(program: Program) {
     private def copyEnvs(n: Int)(env: Env): List[Env] =
       List.fill(n)(env.copy)
 
-    /**
-     * Returns `true` if the given source element is one that doesn't
-     * interfere with our constant propagation.
-     *
-     * Currently, we do not support constant propagation through loops and
-     * try/catch blocks.
-     */
-    private def isSupportedNode(node: SourceElement): Boolean = node match {
-      case _: DoWhile => false
-      case _: While => false
-      case _: For => false
-      case _: ForIn => false
-      case _: ForVar => false
-      case _: ForVarIn => false
-      case _: Try => false
-      case _ => true
-    }
-
     override def walk(node: TopLevel, env: Env): TopLevel = node match {
       case TopLevel(info, fds, vds, stmts) =>
         // Create the top level stack frame for all global variables and
@@ -410,19 +398,6 @@ class ConstantPropagator(program: Program) {
       case _ =>
         val newNode = super.walk(node, env)
         if (newNode != node) walk(newNode, env) else newNode
-    }
-
-    override def walk(node: SourceElements, env: Env): SourceElements = node match {
-      // Split a list of source elements into two halves: the first half
-      // contains everything up to (but not including) an unsupported source
-      // element.
-      //
-      // This allows us to perform constant propagation up to an unsupported
-      // code construct (e.g., loop), but after that all bets are off so we
-      // just leave the remaining code unchanged.
-      case SourceElements(info, body, strict) =>
-        val (before, after) = body.span(isSupportedNode(_))
-        SourceElements(info, before.map(walk(_, env)) ++ after, strict)
     }
 
     override def walk(node: Stmt, env: Env): Stmt = node match {
@@ -509,6 +484,11 @@ class ConstantPropagator(program: Program) {
         // Finally perform a join on all of the back cases' environments.
         backCasesEnvs.fold(env)(_.join(_))
         Switch(info, newCond, newFrontCases, newDeopt, newBackCases)
+
+      // We don't reason about loops, so just set everything to ⊤.
+      case _: DoWhile | _: While | _: For | _: ForIn | _: ForVar | _: ForVarIn | _: Try =>
+        env.invalidateVariables
+        walk(node, env)
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
