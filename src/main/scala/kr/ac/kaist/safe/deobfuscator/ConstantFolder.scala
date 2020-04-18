@@ -253,6 +253,14 @@ class ConstantFolder(program: Program) {
     }
 
     /**
+     * Find the given member in an object.
+     */
+    private def findMember(obj: ObjectExpr, member: Id): Option[Expr] =
+      obj.members.find {
+        case Field(_, prop, _) => prop.toId.text == member.text
+      }.map { case Field(_, _, expr) => expr }
+
+    /**
      * Implicitly converts a `Boolean` to a `Long` - just like JavaScript!
      */
     private implicit def boolToInt(b: Boolean): Long = if (b) 1 else 0
@@ -605,6 +613,13 @@ class ConstantFolder(program: Program) {
           elements(idx) getOrElse node
         } else {
           Undefined(info)
+        }
+
+      // Simplify the direct member access of an object literal
+      case Dot(_, obj: ObjectExpr, member) =>
+        findMember(obj, member) match {
+          case Some(expr) => expr
+          case None => super.walk(node)
         }
 
       // Rewalk the node if a change has been made to the AST
