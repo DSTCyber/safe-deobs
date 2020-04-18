@@ -46,7 +46,7 @@ class StringDecoder(program: Program) {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
-        val c = combineHexChars(x2, x3)
+        val c = combineHexChars(List(x2, x3))
         val pre = if (c == '"' || c == '\'') Seq('\\', c) else Seq(c)
         pre ++ unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
@@ -62,19 +62,43 @@ class StringDecoder(program: Program) {
      */
     private def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('%', x1, x2, xs @ _*) if Character.digit(x1, 16) != -1 &&
-        Character.digit(x2, 16) != -1 => combineHexChars(x1, x2) +: unescapeUri(xs)
+        Character.digit(x2, 16) != -1 =>
+        combineHexChars(List(x1, x2)) +: unescapeUri(xs)
       case Seq(x, xs @ _*) => x +: unescapeUri(xs)
       case Seq() => ""
     }
 
     private def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
 
-    private def combineHexChars(x1: Char, x2: Char): Char =
-      (Character.digit(x1, 16) * 16 + Character.digit(x2, 16)).toChar
+    /**
+     * Hex-encoded characters are converted to ASCII values where possible.
+     * Quote (" and ') characters within the character sequence must be escaped
+     * so that the string can be re-terminated.
+     */
+    private def unescapeUnicode(seq: Seq[Char]): Seq[Char] = seq match {
+      case Seq('\\', x1, x2, x3, x4, x5, xs @ _*) if Character.toLowerCase(x1) == 'u' &&
+        Character.digit(x2, 16) != -1 &&
+        Character.digit(x3, 16) != -1 &&
+        Character.digit(x4, 16) != -1 &&
+        Character.digit(x5, 16) != -1 =>
+        val c = combineHexChars(List(x2, x3, x4, x5))
+        val pre = if (c == '"' || c == '\'') Seq('\\', c) else Seq(c)
+        pre ++ unescapeUnicode(xs)
+      case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
+      case Seq() => ""
+    }
+
+    private def unescapeUnicode(str: String): String = unescapeUnicode(str.toSeq).mkString
+
+    private def combineHexChars(xs: Seq[Char]): Char =
+      xs.foldLeft(0)(_ * 16 + Character.digit(_, 16)).toChar
 
     override def walk(node: LHS): LHS = node match {
+      // Compose unescape functions together so that we can unescape everything
+      // at once
       case StringLiteral(info, quote, str, false) =>
-        super.walk(StringLiteral(info, quote, unescapeHex(str), false))
+        val unescape = unescapeHex _ compose unescapeUnicode _
+        super.walk(StringLiteral(info, quote, unescape(str), false))
       // Pattern match on calls to the "unescape" function. This function takes
       // a single string argument. Only string literals are handled here
       // however other deobfuscation stages (e.g. constant propagation) may
