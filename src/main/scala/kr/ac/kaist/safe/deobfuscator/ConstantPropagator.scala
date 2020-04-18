@@ -485,10 +485,9 @@ class ConstantPropagator(program: Program) {
         backCasesEnvs.fold(env)(_.join(_))
         Switch(info, newCond, newFrontCases, newDeopt, newBackCases)
 
-      // We don't reason about loops, so just set everything to ⊤.
+      // We don't reason about loops, so we have to bail :(
       case _: DoWhile | _: While | _: For | _: ForIn | _: ForVar | _: ForVarIn | _: Try =>
-        env.invalidateVariables
-        walk(node, env)
+        node
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
