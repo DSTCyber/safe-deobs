@@ -543,6 +543,18 @@ class ConstantFolder(program: Program) {
       case InfixOpApp(info, left, op, ExprList(_, exprs)) =>
         walk(InfixOpApp(info, walk(left), op, walk(exprs.last)))
 
+      // Simplify logical "and"
+      case InfixOpApp(_, lhs, Op(_, "&&"), Bool(_, true)) => walk(lhs)
+      case InfixOpApp(_, Bool(_, true), Op(_, "&&"), rhs) => walk(rhs)
+      case InfixOpApp(_, _, Op(_, "&&"), rhs @ Bool(_, false)) => super.walk(rhs)
+      case InfixOpApp(_, lhs @ Bool(_, false), Op(_, "&&"), _) => super.walk(lhs)
+
+      // Simplify logical "or"
+      case InfixOpApp(_, _, Op(_, "||"), rhs @ Bool(_, true)) => super.walk(rhs)
+      case InfixOpApp(_, lhs @ Bool(_, true), Op(_, "||"), _) => super.walk(lhs)
+      case InfixOpApp(_, lhs, Op(_, "||"), Bool(_, false)) => walk(lhs)
+      case InfixOpApp(_, Bool(_, false), Op(_, "||"), rhs) => walk(rhs)
+
       // Simplifies the inversion of a boolean literal
       case PrefixOpApp(info, Op(_, "!"), Bool(_, bool)) =>
         Bool(info, !bool)
@@ -618,7 +630,7 @@ class ConstantFolder(program: Program) {
       // Simplify the direct member access of an object literal
       case Dot(_, obj: ObjectExpr, member) =>
         findMember(obj, member) match {
-          case Some(expr) => super.walk(expr)
+          case Some(expr) => walk(expr)
           case None => super.walk(node)
         }
 
