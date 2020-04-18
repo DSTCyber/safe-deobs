@@ -618,7 +618,7 @@ class ConstantFolder(program: Program) {
       // Simplify the direct member access of an object literal
       case Dot(_, obj: ObjectExpr, member) =>
         findMember(obj, member) match {
-          case Some(expr) => expr
+          case Some(expr) => super.walk(expr)
           case None => super.walk(node)
         }
 

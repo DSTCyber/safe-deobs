@@ -37,14 +37,12 @@ class StringDecoder(program: Program) {
   ////////////////////////////////////////////////////////////////
 
   private object StringRewriteWalker extends ASTWalker {
-    def unescapeHex(str: String): String = unescapeHex(str.toSeq).mkString
-
     /**
      * Hex-encoded characters are converted to ASCII values when possible.
      * Quote (" and ') characters within the character sequence must be escaped
      * so that the string can be re-terminated.
      */
-    def unescapeHex(seq: Seq[Char]): Seq[Char] = seq match {
+    private def unescapeHex(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
@@ -55,21 +53,23 @@ class StringDecoder(program: Program) {
       case Seq() => ""
     }
 
-    def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
+    private def unescapeHex(str: String): String = unescapeHex(str.toSeq).mkString
 
     /**
      * URI-encoded characters are converted to ASCII values when possible.
      * Quote (") characters within the character sequence must be escaped so
      * that the string can be re-terminated.
      */
-    def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
+    private def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('%', x1, x2, xs @ _*) if Character.digit(x1, 16) != -1 &&
         Character.digit(x2, 16) != -1 => combineHexChars(x1, x2) +: unescapeUri(xs)
       case Seq(x, xs @ _*) => x +: unescapeUri(xs)
       case Seq() => ""
     }
 
-    def combineHexChars(x1: Char, x2: Char): Char =
+    private def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
+
+    private def combineHexChars(x1: Char, x2: Char): Char =
       (Character.digit(x1, 16) * 16 + Character.digit(x2, 16)).toChar
 
     override def walk(node: LHS): LHS = node match {
