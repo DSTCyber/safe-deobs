@@ -243,7 +243,9 @@ class ConstantPropagator(program: Program) {
      * Invalidate all variables in the environment by setting them to ⊤.
      */
     def invalidateVariables(): Unit =
-      variables.map(_.map(_ -> Top))
+      variables.foreach(frame => frame.foreach {
+        case (variable, _) => frame += variable -> Top
+      })
 
     /**
      * Retrieves a variable from the environment.
@@ -485,8 +487,9 @@ class ConstantPropagator(program: Program) {
         backCasesEnvs.fold(env)(_.join(_))
         Switch(info, newCond, newFrontCases, newDeopt, newBackCases)
 
-      // We don't reason about loops, so we have to bail :(
+      // We don't reason about loops, so we must bail :(
       case _: DoWhile | _: While | _: For | _: ForIn | _: ForVar | _: ForVarIn | _: Try =>
+        env.invalidateVariables
         node
 
       // Rewalk the node if a change has been made to the AST
