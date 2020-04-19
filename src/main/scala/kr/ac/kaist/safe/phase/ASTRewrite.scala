@@ -29,7 +29,7 @@ case object ASTRewrite extends PhaseObj[Program, ASTRewriteConfig, Program] {
     safeConfig: SafeConfig,
     config: ASTRewriteConfig
   ): Try[Program] = {
-    val (program, excLog) = rewrite(pgm)
+    val (program, excLog) = rewrite(pgm, !config.disableWithRewriter)
 
     // Report errors.
     if (excLog.hasError && !safeConfig.testMode && !safeConfig.silent) {
@@ -51,7 +51,7 @@ case object ASTRewrite extends PhaseObj[Program, ASTRewriteConfig, Program] {
     Success(program)
   }
 
-  def rewrite(pgm: Program): (Program, ExcLog) = {
+  def rewrite(pgm: Program, enableWithRewriter: Boolean = true): (Program, ExcLog) = {
     // hoist
     val hoister = new Hoister(pgm)
     var program = hoister.result
@@ -63,9 +63,11 @@ case object ASTRewrite extends PhaseObj[Program, ASTRewriteConfig, Program] {
     excLog += disambiguator.excLog
 
     // "with" rewrite
-    val withRewriter = new WithRewriter(program, false)
-    program = withRewriter.result
-    excLog += withRewriter.excLog
+    if (enableWithRewriter) {
+      val withRewriter = new WithRewriter(program, false)
+      program = withRewriter.result
+      excLog += withRewriter.excLog
+    }
 
     (program, excLog)
   }
@@ -75,12 +77,15 @@ case object ASTRewrite extends PhaseObj[Program, ASTRewriteConfig, Program] {
     ("silent", BoolOption(c => c.silent = true),
       "messages during rewriting AST are muted."),
     ("out", StrOption((c, s) => c.outFile = Some(s)),
-      "the rewritten AST will be written to the outfile.")
+      "the rewritten AST will be written to the outfile."),
+    ("disableWithRewriter", BoolOption(c => c.disableWithRewriter = true),
+      "with statements will not be rewritten.")
   )
 }
 
 // ASTRewrite phase config
 case class ASTRewriteConfig(
   var silent: Boolean = false,
-  var outFile: Option[String] = None
+  var outFile: Option[String] = None,
+  var disableWithRewriter: Boolean = false
 ) extends Config
