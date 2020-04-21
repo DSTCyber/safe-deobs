@@ -41,7 +41,8 @@ class StringDecoder(program: Program) {
      * Escape special characters.
      */
     private def escapeChar(c: Char): Seq[Char] =
-      if (c == '"' || c == '\'') Seq('\\', c)
+      if (c == '"' || c == '\'' || c == '\\') Seq('\\', c)
+      else if (c == 0x00) Seq('\\', '0')
       else if (c == 0x7) Seq('\\', 'a')
       else if (c == 0x8) Seq('\\', 'b')
       else if (c == 0x9) Seq('\\', 't')
