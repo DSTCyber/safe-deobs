@@ -38,6 +38,20 @@ class StringDecoder(program: Program) {
 
   private object StringRewriteWalker extends ASTWalker {
     /**
+     * Escape special characters.
+     */
+    private def escapeChar(c: Char): Seq[Char] =
+      if (c == '"' || c == '\'') Seq('\\', c)
+      else if (c == 0x7) Seq('\\', 'a')
+      else if (c == 0x8) Seq('\\', 'b')
+      else if (c == 0x9) Seq('\\', 't')
+      else if (c == 0xa) Seq('\\', 'n')
+      else if (c == 0xb) Seq('\\', 'v')
+      else if (c == 0xc) Seq('\\', 'f')
+      else if (c == 0xd) Seq('\\', 'r')
+      else Seq(c)
+
+    /**
      * Hex-encoded characters are converted to ASCII values when possible.
      * Quote (" and ') characters within the character sequence must be escaped
      * so that the string can be re-terminated.
@@ -47,13 +61,33 @@ class StringDecoder(program: Program) {
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
         val c = combineHexChars(List(x2, x3))
-        val pre = if (c == '"' || c == '\'') Seq('\\', c) else Seq(c)
+        val pre = escapeChar(c)
         pre ++ unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
       case Seq() => ""
     }
 
     private def unescapeHex(str: String): String = unescapeHex(str.toSeq).mkString
+
+    /**
+     * Unicode-encoded characters are converted to ASCII values where possible.
+     * Quote (" and ') characters within the character sequence must be escaped
+     * so that the string can be re-terminated.
+     */
+    private def unescapeUnicode(seq: Seq[Char]): Seq[Char] = seq match {
+      case Seq('\\', x1, x2, x3, x4, x5, xs @ _*) if Character.toLowerCase(x1) == 'u' &&
+        Character.digit(x2, 16) != -1 &&
+        Character.digit(x3, 16) != -1 &&
+        Character.digit(x4, 16) != -1 &&
+        Character.digit(x5, 16) != -1 =>
+        val c = combineHexChars(List(x2, x3, x4, x5))
+        val pre = escapeChar(c)
+        pre ++ unescapeUnicode(xs)
+      case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
+      case Seq() => ""
+    }
+
+    private def unescapeUnicode(str: String): String = unescapeUnicode(str.toSeq).mkString
 
     /**
      * URI-encoded characters are converted to ASCII values when possible.
@@ -69,26 +103,6 @@ class StringDecoder(program: Program) {
     }
 
     private def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
-
-    /**
-     * Hex-encoded characters are converted to ASCII values where possible.
-     * Quote (" and ') characters within the character sequence must be escaped
-     * so that the string can be re-terminated.
-     */
-    private def unescapeUnicode(seq: Seq[Char]): Seq[Char] = seq match {
-      case Seq('\\', x1, x2, x3, x4, x5, xs @ _*) if Character.toLowerCase(x1) == 'u' &&
-        Character.digit(x2, 16) != -1 &&
-        Character.digit(x3, 16) != -1 &&
-        Character.digit(x4, 16) != -1 &&
-        Character.digit(x5, 16) != -1 =>
-        val c = combineHexChars(List(x2, x3, x4, x5))
-        val pre = if (c == '"' || c == '\'') Seq('\\', c) else Seq(c)
-        pre ++ unescapeUnicode(xs)
-      case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
-      case Seq() => ""
-    }
-
-    private def unescapeUnicode(str: String): String = unescapeUnicode(str.toSeq).mkString
 
     private def combineHexChars(xs: Seq[Char]): Char =
       xs.foldLeft(0)(_ * 16 + Character.digit(_, 16)).toChar
