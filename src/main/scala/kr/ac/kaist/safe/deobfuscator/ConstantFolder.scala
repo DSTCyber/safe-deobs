@@ -617,6 +617,9 @@ class ConstantFolder(program: Program) {
       case PrefixOpApp(info, Op(_, "typeof"), _: StringLiteral) =>
         StringLiteral(info, "\"", "string", false)
 
+      // Parenthesized literals can simply be unwrapped
+      case Parenthesized(_, expr: Literal) => super.walk(expr)
+
       // Simplify a lookup on an array literal. If the index is not in range,
       // `Undefined` is returned
       case Bracket(info, ArrayExpr(_, elements), IntLiteral(_, intVal, _)) =>
