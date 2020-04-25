@@ -14,6 +14,7 @@ package kr.ac.kaist.safe.deobfuscator
 
 import kr.ac.kaist.safe.errors.ExcLog
 import kr.ac.kaist.safe.nodes.ast._
+import kr.ac.kaist.safe.util.NodeUtil
 
 /**
  * Decodes string literals to make them more readable. This includes:
@@ -38,21 +39,6 @@ class StringDecoder(program: Program) {
 
   private object StringRewriteWalker extends ASTWalker {
     /**
-     * Escape special characters.
-     */
-    private def escapeChar(c: Char): Seq[Char] =
-      if (c == '"' || c == '\'' || c == '\\') Seq('\\', c)
-      else if (c == 0x00) Seq('\\', '0')
-      else if (c == 0x7) Seq('\\', 'a')
-      else if (c == 0x8) Seq('\\', 'b')
-      else if (c == 0x9) Seq('\\', 't')
-      else if (c == 0xa) Seq('\\', 'n')
-      else if (c == 0xb) Seq('\\', 'v')
-      else if (c == 0xc) Seq('\\', 'f')
-      else if (c == 0xd) Seq('\\', 'r')
-      else Seq(c)
-
-    /**
      * Hex-encoded characters are converted to ASCII values when possible.
      * Quote (" and ') characters within the character sequence must be escaped
      * so that the string can be re-terminated.
@@ -62,7 +48,7 @@ class StringDecoder(program: Program) {
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
         val c = combineHexChars(List(x2, x3))
-        val pre = escapeChar(c)
+        val pre = NodeUtil.pp(c.toString)
         pre ++ unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
       case Seq() => ""
@@ -82,7 +68,7 @@ class StringDecoder(program: Program) {
         Character.digit(x4, 16) != -1 &&
         Character.digit(x5, 16) != -1 =>
         val c = combineHexChars(List(x2, x3, x4, x5))
-        val pre = escapeChar(c)
+        val pre = NodeUtil.pp(c.toString)
         pre ++ unescapeUnicode(xs)
       case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
       case Seq() => ""
