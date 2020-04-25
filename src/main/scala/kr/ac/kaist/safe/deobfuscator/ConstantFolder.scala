@@ -637,6 +637,11 @@ class ConstantFolder(program: Program) {
           case None => super.walk(node)
         }
 
+      // Bracket accecss of a string literal (e.g., `"safe-deobs"["charAt"](4)`)
+      // is simplified to `"safe-deobs.charAt(4)"
+      case FunApp(info, Bracket(_, obj: StringLiteral, idx: StringLiteral), args) if !obj.isRE && !idx.isRE =>
+        FunApp(info, Dot(obj.info, obj, Id(idx.info, idx.escaped, Some(idx.escaped), false)), args)
+
       // Rewalk the node if a change has been made to the AST
       case _ =>
         val newNode = super.walk(node)
