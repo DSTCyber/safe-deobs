@@ -296,14 +296,15 @@ class VariableRenamer(program: Program) {
           FunExpr(info, newFtn)
       }
 
-      // Rename the called function. The called function could be an anonymous
+      // Rename the called function. The callee could be a function or a
+      // function stored in a variable. The callee could also be an anonymous
       // function and may not be identified by a VarRef; in this case just
       // return the original FunApp with only the arguments updated
       case FunApp(info, fun, args) => {
         val newArgs = args.map(walk(_, env))
         fun match {
           case VarRef(vrInfo, id) =>
-            val newId = env.getFuncId(id).getOrElse(id)
+            val newId = env.getFuncId(id).orElse(env.getVarId(id)).getOrElse(id)
             FunApp(info, VarRef(vrInfo, newId), newArgs)
           case _ => FunApp(info, walk(fun, env), newArgs)
         }
