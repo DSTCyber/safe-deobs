@@ -44,7 +44,7 @@ class KnownFunctionSimplifier(program: Program) {
 
   private object KnownFunctionsWalker extends ASTWalker {
     override def walk(node: Expr): Expr = node match {
-      // Statically coalesce a number of Unicode numbers into a single string
+      // Coalesce a number of Unicode numbers into a single string
       case FunApp(info, Dot(_, VarRef(_, Id(_, "String", _, _)), Id(_, "fromCharCode", _, _)), args) if allIntLiterals(args) =>
         val str = args.foldLeft("") {
           case (str, arg: IntLiteral) => str :+ arg.intVal.intValue.toChar
@@ -53,24 +53,34 @@ class KnownFunctionSimplifier(program: Program) {
         }
         StringLiteral(info, "'", str, false)
 
-      // Statically determine the position of the first occurance of a specified value in a string
-      case FunApp(info, Dot(_, StringLiteral(_, _, str, false), Id(_, "indexOf", _, _)), List(StringLiteral(_, _, searchValue, false))) =>
+      // Determine the position of the first occurance of a specified value in a
+      // string
+      case FunApp(info, Dot(_, StringLiteral(_, _, str, false), Id(_, "indexOf", _, _)),
+        List(StringLiteral(_, _, searchValue, false))) =>
         val index = str.indexOf(searchValue)
         IntLiteral(info, BigInteger.valueOf(index), 10)
-      case FunApp(info, Dot(_, StringLiteral(_, _, str, false), Id(_, "indexOf", _, _)), List(StringLiteral(_, _, searchValue, false), IntLiteral(_, start, _))) =>
+      case FunApp(info, Dot(_, StringLiteral(_, _, str, false), Id(_, "indexOf", _, _)),
+        List(StringLiteral(_, _, searchValue, false), IntLiteral(_, start, _))) =>
         val index = str.indexOf(searchValue, start.intValue)
         IntLiteral(info, BigInteger.valueOf(index), 10)
 
-      // Statically calculate string length
+      // Calculate string length
       case Dot(info, StringLiteral(_, _, str, false), Id(_, "length", _, _)) =>
         IntLiteral(info, BigInteger.valueOf(str.length), 10)
 
-      // Statically determine the character at a specific index of a string
-      case FunApp(info, Dot(_, StringLiteral(_, _, str, false), Id(_, "charAt", _, _)), List(IntLiteral(_, intVal, _))) =>
+      // Determine the character at a specific index of a string
+      case FunApp(info, Dot(_, StringLiteral(_, quote, str, false), Id(_, "charAt", _, _)),
+        List(IntLiteral(_, intVal, _))) =>
         val chr = str.charAt(intVal.intValue)
-        StringLiteral(info, "'", chr.toString, false)
+        StringLiteral(info, quote, chr.toString, false)
 
-      // Statically convert a number to a string. Note that number literals must be parenthesized (unlike booleans)
+      // Replace a literal substring in a literal string
+      case FunApp(info, Dot(_, StringLiteral(_, quote, str, false), Id(_, "replace", _, _)),
+        List(StringLiteral(_, _, substr, false), StringLiteral(_, _, newSubstr, false))) =>
+        StringLiteral(info, quote, str.replace(substr, newSubstr), false)
+
+      // Convert a number to a string. Note that number literals must be
+      // parenthesized (unlike booleans)
       case FunApp(info, Dot(_, Bool(_, bool), Id(_, "toString", _, _)), Nil) =>
         StringLiteral(info, "'", bool.toString, false)
       case FunApp(info, Dot(_, Parenthesized(_, DoubleLiteral(_, _, num)), Id(_, "toString", _, _)), Nil) =>
