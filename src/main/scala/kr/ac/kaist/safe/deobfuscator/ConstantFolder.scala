@@ -617,9 +617,6 @@ class ConstantFolder(program: Program) {
       case PrefixOpApp(info, Op(_, "typeof"), _: StringLiteral) =>
         StringLiteral(info, "\"", "string", false)
 
-      // Parenthesized literals can simply be unwrapped
-      case Parenthesized(_, expr: Literal) => super.walk(expr)
-
       // Simplify a lookup on an array literal. If the index is not in range,
       // `Undefined` is returned
       case Bracket(info, ArrayExpr(_, elements), IntLiteral(_, intVal, _)) =>
@@ -637,10 +634,20 @@ class ConstantFolder(program: Program) {
           case None => super.walk(node)
         }
 
+      // Rewalk the node if a change has been made to the AST
+      case _ =>
+        val newNode = super.walk(node)
+        if (newNode != node) walk(newNode) else newNode
+    }
+
+    override def walk(node: LHS): LHS = node match {
+      // Parenthesized literals can simply be unwrapped
+      case Parenthesized(_, expr: Literal) => super.walk(expr)
+
       // Bracket accecss of a string literal (e.g., `"safe-deobs"["charAt"](4)`)
       // is simplified to `"safe-deobs.charAt(4)"
       case FunApp(info, Bracket(_, obj: StringLiteral, idx: StringLiteral), args) if !obj.isRE && !idx.isRE =>
-        FunApp(info, Dot(obj.info, obj, Id(idx.info, idx.escaped, Some(idx.escaped), false)), args)
+        FunApp(info, Dot(obj.info, obj, Id(idx.info, idx.escaped, Some(idx.escaped), false)), args.map(walk(_)))
 
       // Rewalk the node if a change has been made to the AST
       case _ =>
