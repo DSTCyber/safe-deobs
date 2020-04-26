@@ -304,7 +304,7 @@ class VariableRenamer(program: Program) {
         val newArgs = args.map(walk(_, env))
         fun match {
           case VarRef(vrInfo, id) =>
-            val newId = env.getFuncId(id).orElse(env.getVarId(id)).getOrElse(id)
+            val newId = env.getFuncId(id) orElse env.getVarId(id) getOrElse (id)
             FunApp(info, VarRef(vrInfo, newId), newArgs)
           case _ => FunApp(info, walk(fun, env), newArgs)
         }
