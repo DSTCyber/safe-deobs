@@ -355,7 +355,7 @@ object DeobfuscatorUtil {
     "banana_squash",
     "chickpea",
     "delicata",
-    "black-eyed_pea",
+    "black_eyed_pea",
     "endive",
     "fiddlehead",
     "jicama",
