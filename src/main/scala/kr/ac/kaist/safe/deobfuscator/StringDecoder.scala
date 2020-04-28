@@ -39,6 +39,18 @@ class StringDecoder(program: Program) {
 
   private object StringRewriteWalker extends ASTWalker {
     /**
+     * Combine a sequence of chars into a single char.
+     */
+    private def combineChars(xs: Seq[Char]): Int =
+      xs.foldLeft(0)(_ * 16 + Character.digit(_, 16)).toChar
+
+    /**
+     * Check if the given char is printable.
+     */
+    private def isPrintable(i: Int): Boolean =
+      (i >= 0x07 && i <= 0x0d) || (i >= 0x20 && i <= 0x7e)
+
+    /**
      * Escape special characters.
      */
     private def escapeChar(c: Char): Seq[Char] =
@@ -54,8 +66,8 @@ class StringDecoder(program: Program) {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
-        val c = combineHexChars(List(x2, x3))
-        val pre = escapeChar(c)
+        val i = combineChars(List(x2, x3))
+        val pre = if (isPrintable(i)) escapeChar(i.toChar) else Seq('\\', x1, x2, x3)
         pre ++ unescapeHex(xs)
       case Seq(x, xs @ _*) => x +: unescapeHex(xs)
       case Seq() => ""
@@ -74,8 +86,8 @@ class StringDecoder(program: Program) {
         Character.digit(x3, 16) != -1 &&
         Character.digit(x4, 16) != -1 &&
         Character.digit(x5, 16) != -1 =>
-        val c = combineHexChars(List(x2, x3, x4, x5))
-        val pre = escapeChar(c)
+        val i = combineChars(List(x2, x3, x4, x5))
+        val pre = if (isPrintable(i)) escapeChar(i.toChar) else Seq('\\', x1, x2, x3, x4, x5)
         pre ++ unescapeUnicode(xs)
       case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
       case Seq() => ""
@@ -91,15 +103,12 @@ class StringDecoder(program: Program) {
     private def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
       case Seq('%', x1, x2, xs @ _*) if Character.digit(x1, 16) != -1 &&
         Character.digit(x2, 16) != -1 =>
-        combineHexChars(List(x1, x2)) +: unescapeUri(xs)
+        combineChars(List(x1, x2)).toChar +: unescapeUri(xs)
       case Seq(x, xs @ _*) => x +: unescapeUri(xs)
       case Seq() => ""
     }
 
     private def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
-
-    private def combineHexChars(xs: Seq[Char]): Char =
-      xs.foldLeft(0)(_ * 16 + Character.digit(_, 16)).toChar
 
     override def walk(node: LHS): LHS = node match {
       // Compose unescape functions together so that we can unescape everything
