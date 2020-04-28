@@ -53,8 +53,8 @@ class StringDecoder(program: Program) {
     /**
      * Escape special characters.
      */
-    private def escapeChar(c: Char): Seq[Char] =
-      if (c == '\\') "\\\\"
+    private def escapeChar(c: Char, quote: Char): Seq[Char] =
+      if (c == '\\' || c == quote) Seq('\\', c)
       else NodeUtil.pp(c.toString)
 
     /**
@@ -62,66 +62,77 @@ class StringDecoder(program: Program) {
      * Quote (" and ') characters within the character sequence must be escaped
      * so that the string can be re-terminated.
      */
-    private def unescapeHex(seq: Seq[Char]): Seq[Char] = seq match {
+    private def unescapeHex(seq: Seq[Char], quote: Char): Seq[Char] = seq match {
       case Seq('\\', x1, x2, x3, xs @ _*) if Character.toLowerCase(x1) == 'x' &&
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 =>
         val i = combineChars(List(x2, x3))
-        val pre = if (isPrintable(i)) escapeChar(i.toChar) else Seq('\\', x1, x2, x3)
-        pre ++ unescapeHex(xs)
-      case Seq(x, xs @ _*) => x +: unescapeHex(xs)
+        val pre = if (isPrintable(i)) escapeChar(i.toChar, quote) else Seq('\\', x1, x2, x3)
+        pre ++ unescapeHex(xs, quote)
+      case Seq(x, xs @ _*) => x +: unescapeHex(xs, quote)
       case Seq() => ""
     }
 
-    private def unescapeHex(str: String): String = unescapeHex(str.toSeq).mkString
+    private def unescapeHex(str: String, quote: Char): String =
+      unescapeHex(str.toSeq, quote).mkString
 
     /**
      * Unicode-encoded characters are converted to ASCII values where possible.
      * Quote (" and ') characters within the character sequence must be escaped
      * so that the string can be re-terminated.
      */
-    private def unescapeUnicode(seq: Seq[Char]): Seq[Char] = seq match {
+    private def unescapeUnicode(seq: Seq[Char], quote: Char): Seq[Char] = seq match {
       case Seq('\\', x1, x2, x3, x4, x5, xs @ _*) if Character.toLowerCase(x1) == 'u' &&
         Character.digit(x2, 16) != -1 &&
         Character.digit(x3, 16) != -1 &&
         Character.digit(x4, 16) != -1 &&
         Character.digit(x5, 16) != -1 =>
         val i = combineChars(List(x2, x3, x4, x5))
-        val pre = if (isPrintable(i)) escapeChar(i.toChar) else Seq('\\', x1, x2, x3, x4, x5)
-        pre ++ unescapeUnicode(xs)
-      case Seq(x, xs @ _*) => x +: unescapeUnicode(xs)
+        val pre = if (isPrintable(i)) escapeChar(i.toChar, quote) else Seq('\\', x1, x2, x3, x4, x5)
+        pre ++ unescapeUnicode(xs, quote)
+      case Seq(x, xs @ _*) => x +: unescapeUnicode(xs, quote)
       case Seq() => ""
     }
 
-    private def unescapeUnicode(str: String): String = unescapeUnicode(str.toSeq).mkString
+    private def unescapeUnicode(str: String, quote: Char): String =
+      unescapeUnicode(str.toSeq, quote).mkString
 
     /**
      * URI-encoded characters are converted to ASCII values when possible.
-     * Quote (") characters within the character sequence must be escaped so
-     * that the string can be re-terminated.
+     * Quote (" and '') characters within the character sequence must be escaped
+     * so that the string can be re-terminated.
      */
-    private def unescapeUri(seq: Seq[Char]): Seq[Char] = seq match {
+    private def unescapeUri(seq: Seq[Char], quote: Char): Seq[Char] = seq match {
       case Seq('%', x1, x2, xs @ _*) if Character.digit(x1, 16) != -1 &&
         Character.digit(x2, 16) != -1 =>
-        combineChars(List(x1, x2)).toChar +: unescapeUri(xs)
-      case Seq(x, xs @ _*) => x +: unescapeUri(xs)
+        val i = combineChars(List(x1, x2))
+        val pre = if (isPrintable(i)) escapeChar(i.toChar, quote) else Seq('%', x1, x2)
+        pre ++ unescapeUri(xs, quote)
+      case Seq(x, xs @ _*) => x +: unescapeUri(xs, quote)
       case Seq() => ""
     }
 
-    private def unescapeUri(str: String): String = unescapeUri(str.toSeq).mkString
+    private def unescapeUri(str: String, quote: Char): String =
+      unescapeUri(str.toSeq, quote).mkString
 
     override def walk(node: LHS): LHS = node match {
       // Compose unescape functions together so that we can unescape everything
       // at once
-      case StringLiteral(info, quote, str, false) =>
-        val unescape = unescapeHex _ compose unescapeUnicode _
+      case StringLiteral(info, quote, str, false) if quote.length == 1 =>
+        val quoteChar = quote.charAt(0)
+        val unescapeHexQuote = unescapeHex(_: String, quoteChar)
+        val unescapeUnicodeQuote = unescapeUnicode(_: String, quoteChar)
+        val unescape = unescapeHexQuote compose unescapeUnicodeQuote
         super.walk(StringLiteral(info, quote, unescape(str), false))
+
       // Pattern match on calls to the "unescape" function. This function takes
       // a single string argument. Only string literals are handled here
       // however other deobfuscation stages (e.g. constant propagation) may
       // replace a variable argument with a string literal.
-      case FunApp(info, VarRef(_, Id(_, "unescape", _, _)), StringLiteral(_, quote, str, false) :: Nil) =>
-        super.walk(StringLiteral(info, quote, unescapeUri(str), false))
+      case FunApp(info, VarRef(_, Id(_, "unescape", _, _)),
+        StringLiteral(_, quote, str, false) :: Nil) if quote.length == 1 =>
+        super.walk(StringLiteral(info, quote, unescapeUri(str, quote.charAt(0)), false))
+
       // Rewalk the node if a change has been made to the AST
       case _ =>
         val newNode = super.walk(node)
