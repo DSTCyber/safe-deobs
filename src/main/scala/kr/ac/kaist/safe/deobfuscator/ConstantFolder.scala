@@ -529,13 +529,6 @@ class ConstantFolder(program: Program) {
           case None => node
         }
 
-      // Simplify a binary operation in a single parenthesized expression by
-      // "unwrapping" the parenthesized expression
-      case InfixOpApp(info, paren: Parenthesized, op, right) =>
-        walk(InfixOpApp(info, walk(paren.unwrapParen), op, walk(right)))
-      case InfixOpApp(info, left, op, paren: Parenthesized) =>
-        walk(InfixOpApp(info, walk(left), op, walk(paren.unwrapParen)))
-
       // Simplify a binary operation on an expression list. When performing a
       // binary operation on an expression list, only the last expression is
       // looked at
