@@ -226,16 +226,24 @@ class VariableRenamer(program: Program) {
         // Walk the global variable declarations. This will generate new
         // identifiers for these variables
         val newVds = vds.map(walk(_, env))
-        // Walk the global function declarations and rename variables
-        // within
-        val newFds = fds.map(walk(_, env))
+        // Rename all functions **before** walking the function bodies
+        val renamedFds = fds.map {
+          case FunDecl(info, Functional(ftnInfo, fds, vds, stmts, name, params, body), strict) =>
+            val newName = env.genFuncId(name)
+            val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
+            FunDecl(info, newFtn, strict)
+        }
+        // Walk the global function declarations and rename variables within
+        val newFds = renamedFds.map(walk(_, env))
         // Rename variable references in the top level code
         val newStmts = stmts.map(walk(_, env))
         // We're finished - destroy this stack frame
         env.exitScope(node)
         TopLevel(info, newFds, newVds, newStmts)
 
-      case _ => super.walk(node, env)
+      case _ =>
+        val newNode = super.walk(node, env)
+        if (newNode != node) walk(newNode, env) else newNode
     }
 
     override def walk(node: Functional, env: Env): Functional = node match {
@@ -247,15 +255,24 @@ class VariableRenamer(program: Program) {
         // Walk the local variable declarations. This will generate new
         // identifiers for these variables
         val newVds = vds.map(walk(_, env))
+        // Rename all functions **before** walking the function bodies
+        val renamedFds = fds.map {
+          case FunDecl(info, Functional(ftnInfo, fds, vds, stmts, name, params, body), strict) =>
+            val newName = env.genFuncId(name)
+            val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
+            FunDecl(info, newFtn, strict)
+        }
         // Walk the local function declarations and rename variables within
-        val newFds = fds.map(walk(_, env))
+        val newFds = renamedFds.map(walk(_, env))
         // Rename variable references in this function
         val newStmts = walk(stmts, env)
         // We're finished - destroy this stack frame
         env.exitScope(node)
         Functional(info, newFds, newVds, newStmts, name, newParams, body)
 
-      case _ => super.walk(node, env)
+      case _ =>
+        val newNode = super.walk(node, env)
+        if (newNode != node) walk(newNode, env) else newNode
     }
 
     override def walk(node: VarDecl, env: Env): VarDecl = node match {
@@ -263,18 +280,6 @@ class VariableRenamer(program: Program) {
       case VarDecl(info, name, expr, isWith) =>
         val newName = env.genVarIdWithComment(name)
         VarDecl(info, newName, expr.map(walk(_, env)), isWith)
-    }
-
-    override def walk(node: FunDecl, env: Env): FunDecl = node match {
-      // Rename functions.
-      //
-      // Don't forget to walk the function itself!
-      case FunDecl(info, ftn, strict) => walk(ftn, env) match {
-        case Functional(ftnInfo, fds, vds, stmts, name, params, body) =>
-          val newName = env.genFuncId(name)
-          val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
-          FunDecl(info, newFtn, strict)
-      }
     }
 
     override def walk(node: LHS, env: Env): LHS = node match {
@@ -286,14 +291,6 @@ class VariableRenamer(program: Program) {
       case VarRef(info, id) => env.getVarId(id) match {
         case Some(newId) => VarRef(info, newId)
         case _ => super.walk(node, env)
-      }
-
-      // Rename a function expression. May be anonymous
-      case FunExpr(info, ftn) => walk(ftn, env) match {
-        case Functional(ftnInfo, fds, vds, stmts, name, params, body) =>
-          val newName = env.genFuncId(name)
-          val newFtn = Functional(ftnInfo, fds, vds, stmts, newName, params, body)
-          FunExpr(info, newFtn)
       }
 
       // Rename the called function. The callee could be a function or a
