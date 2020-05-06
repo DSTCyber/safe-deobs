@@ -47,7 +47,7 @@ class KnownFunctionSimplifier(program: Program) {
       // Coalesce a number of Unicode numbers into a single string
       case FunApp(info, Dot(_, VarRef(_, Id(_, "String", _, _)), Id(_, "fromCharCode", _, _)), args) if allIntLiterals(args) =>
         val str = args.foldLeft("") {
-          case (str, arg: IntLiteral) => str :+ arg.intVal.intValue.toChar
+          case (res, arg: IntLiteral) => res + f"\\u${arg.intVal.intValue}%04x"
           // TODO Throw exception (although this should never happen)
           case _ => ???
         }
